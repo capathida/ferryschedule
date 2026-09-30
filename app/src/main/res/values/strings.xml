@@ -1,0 +1,11 @@
+<resources>
+    <string name="app_name">Hönö Färja</string>
+    <string name="car_app_name">Hönöleden</string>
+    <string name="origin_hono">Hönö Pinan</string>
+    <string name="origin_varholmen">Lilla Varholmen</string>
+    <string name="action_switch_direction">Byt riktning</string>
+    <string name="action_refresh">Uppdatera</string>
+    <string name="crossing_duration_info">Överfartstid ~12 min</string>
+    <string name="loading_departures">Hämtar avgångar…</string>
+    <string name="no_departures_found">Inga fler avgångar hittades</string>
+</resources>

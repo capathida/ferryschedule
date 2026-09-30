@@ -1,0 +1,11 @@
+<resources>
+    <color name="primary">#0061A4</color>
+    <color name="on_primary">#FFFFFF</color>
+    <color name="primary_container">#D1E4FF</color>
+    <color name="on_primary_container">#001D36</color>
+    <color name="surface">#FDFBFF</color>
+    <color name="on_surface">#1A1C1E</color>
+    <color name="ferry_blue">#0A58CA</color>
+    <color name="ferry_ocean">#032859</color>
+    <color name="ferry_cyan">#0DCAF0</color>
+</resources>
