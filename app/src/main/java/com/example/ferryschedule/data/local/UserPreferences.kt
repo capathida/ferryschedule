@@ -78,6 +78,40 @@ class UserPreferences(context: Context) {
             .apply()
     }
 
+    var lastErrorTimestamp: Long
+        get() = prefs.getLong(KEY_LAST_ERROR_TIMESTAMP, 0L)
+        set(value) = prefs.edit().putLong(KEY_LAST_ERROR_TIMESTAMP, value).apply()
+
+    var lastErrorCode: Int
+        get() = prefs.getInt(KEY_LAST_ERROR_CODE, 0)
+        set(value) = prefs.edit().putInt(KEY_LAST_ERROR_CODE, value).apply()
+
+    var lastErrorMessage: String
+        get() = prefs.getString(KEY_LAST_ERROR_MESSAGE, "") ?: ""
+        set(value) = prefs.edit().putString(KEY_LAST_ERROR_MESSAGE, value).apply()
+
+    var lastErrorCooldownMs: Long
+        get() = prefs.getLong(KEY_LAST_ERROR_COOLDOWN, 0L)
+        set(value) = prefs.edit().putLong(KEY_LAST_ERROR_COOLDOWN, value).apply()
+
+    fun recordError(code: Int, message: String, cooldownMs: Long) {
+        prefs.edit()
+            .putLong(KEY_LAST_ERROR_TIMESTAMP, System.currentTimeMillis())
+            .putInt(KEY_LAST_ERROR_CODE, code)
+            .putString(KEY_LAST_ERROR_MESSAGE, message)
+            .putLong(KEY_LAST_ERROR_COOLDOWN, cooldownMs)
+            .apply()
+    }
+
+    fun clearError() {
+        prefs.edit()
+            .remove(KEY_LAST_ERROR_TIMESTAMP)
+            .remove(KEY_LAST_ERROR_CODE)
+            .remove(KEY_LAST_ERROR_MESSAGE)
+            .remove(KEY_LAST_ERROR_COOLDOWN)
+            .apply()
+    }
+
     companion object {
         const val DEFAULT_MAX_DAILY_CALLS = 50
         private const val KEY_MAX_DAILY_CALLS = "google_maps_max_daily_calls"
@@ -85,6 +119,10 @@ class UserPreferences(context: Context) {
         private const val KEY_MAPS_API_KEY = "google_maps_api_key"
         private const val KEY_API_CALL_DATE = "google_maps_api_call_date"
         private const val KEY_API_CALL_COUNT = "google_maps_api_call_count"
+        private const val KEY_LAST_ERROR_TIMESTAMP = "google_maps_last_error_ts"
+        private const val KEY_LAST_ERROR_CODE = "google_maps_last_error_code"
+        private const val KEY_LAST_ERROR_MESSAGE = "google_maps_last_error_msg"
+        private const val KEY_LAST_ERROR_COOLDOWN = "google_maps_last_error_cooldown"
 
         @Volatile
         private var instance: UserPreferences? = null

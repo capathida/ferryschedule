@@ -50,6 +50,7 @@ class DrivingEtaRepository(
     fun clearCache() {
         cacheMap.clear()
         errorCacheMap.clear()
+        userPrefs.clearError()
     }
 
     private val sha1Fingerprint: String? by lazy {
@@ -100,18 +101,26 @@ class DrivingEtaRepository(
         // -------------------------------------------------------------------------
         // LAGER 1: Fel-cooldown & Backoff (Skyddar mot loopande anrop vid API-fel)
         // Om Google returnerat fel (t.ex. 403 eller 429), pausa anrop i 5-30 min
+        // Sparas även på disk så att cooldownen gäller efter app-omstart!
         // -------------------------------------------------------------------------
         if (!forceRefresh) {
             val cachedErr = errorCacheMap[direction]
-            if (cachedErr != null) {
-                val age = nowMs - cachedErr.timestampMs
-                if (age < cachedErr.cooldownMs) {
-                    val remainingMins = ((cachedErr.cooldownMs - age) / 60_000L).coerceAtLeast(1)
-                    return cachedErr.error.copy(
-                        message = "${cachedErr.error.message} (Pausad i $remainingMins min för att skydda kvoten)"
+            val errTimestamp = cachedErr?.timestampMs ?: userPrefs.lastErrorTimestamp
+            val errCooldown = cachedErr?.cooldownMs ?: userPrefs.lastErrorCooldownMs
+            val errMsg = cachedErr?.error?.message ?: userPrefs.lastErrorMessage
+            val errCode = cachedErr?.error?.httpCode ?: userPrefs.lastErrorCode
+
+            if (errTimestamp > 0L && errCooldown > 0L) {
+                val age = nowMs - errTimestamp
+                if (age < errCooldown) {
+                    val remainingMins = ((errCooldown - age) / 60_000L).coerceAtLeast(1)
+                    return DrivingEtaState.Error(
+                        message = "$errMsg (Pausad i $remainingMins min för att skydda kvoten)",
+                        httpCode = errCode
                     )
                 } else {
                     errorCacheMap.remove(direction)
+                    userPrefs.clearError()
                 }
             }
         }
@@ -190,6 +199,7 @@ class DrivingEtaRepository(
         when (result) {
             is DrivingEtaState.Success -> {
                 errorCacheMap.remove(direction)
+                userPrefs.clearError()
                 val eta = result.eta
                 cacheMap[direction] = CachedDrivingEta(
                     eta = eta,
@@ -212,6 +222,7 @@ class DrivingEtaRepository(
                     timestampMs = nowMs,
                     cooldownMs = cooldown
                 )
+                userPrefs.recordError(result.httpCode ?: -1, result.message, cooldown)
             }
             else -> {}
         }
