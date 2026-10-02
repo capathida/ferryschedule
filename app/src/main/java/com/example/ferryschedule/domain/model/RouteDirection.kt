@@ -54,6 +54,9 @@ enum class RouteDirection(
     val fromHarborId: Int,
     val toHarborId: Int,
     val crossingMinutes: Int,
+    val departureLatitude: Double,
+    val departureLongitude: Double,
+    val departureHarborName: String,
     val navQuery: String
 ) {
     // 1. Hönöleden (Route 28)
@@ -65,7 +68,10 @@ enum class RouteDirection(
         fromHarborId = 55,
         toHarborId = 56,
         crossingMinutes = 12,
-        navQuery = "Lilla Varholmen Färjeläge"
+        departureLatitude = 57.7005,
+        departureLongitude = 11.6565,
+        departureHarborName = "Hönö Pinan",
+        navQuery = "Hönö Färjeläge Pinan"
     ),
     VARHOLMEN_TO_HONO(
         routeId = 28,
@@ -75,7 +81,10 @@ enum class RouteDirection(
         fromHarborId = 56,
         toHarborId = 55,
         crossingMinutes = 12,
-        navQuery = "Hönö Färjeläge Pinan"
+        departureLatitude = 57.7088,
+        departureLongitude = 11.7100,
+        departureHarborName = "Lilla Varholmen",
+        navQuery = "Lilla Varholmen Färjeläge"
     ),
 
     // 2. Björköleden (Route 23)
@@ -87,7 +96,10 @@ enum class RouteDirection(
         fromHarborId = 45,
         toHarborId = 46,
         crossingMinutes = 6,
-        navQuery = "Lilla Varholmen Färjeläge"
+        departureLatitude = 57.7314,
+        departureLongitude = 11.6888,
+        departureHarborName = "Björkö Grönevik",
+        navQuery = "Björkö Färjeläge Grönevik"
     ),
     VARHOLMEN_TO_BJORKO(
         routeId = 23,
@@ -97,7 +109,10 @@ enum class RouteDirection(
         fromHarborId = 46,
         toHarborId = 45,
         crossingMinutes = 6,
-        navQuery = "Björkö Färjeläge Grönevik"
+        departureLatitude = 57.7088,
+        departureLongitude = 11.7100,
+        departureHarborName = "Lilla Varholmen",
+        navQuery = "Lilla Varholmen Färjeläge"
     ),
 
     // 3. Svanesundsleden (Route 35)
@@ -109,7 +124,10 @@ enum class RouteDirection(
         fromHarborId = 76,
         toHarborId = 75,
         crossingMinutes = 5,
-        navQuery = "Svanesund Färjeläge"
+        departureLatitude = 58.1278,
+        departureLongitude = 11.8392,
+        departureHarborName = "Kolhättan Färjeläge",
+        navQuery = "Kolhättan Färjeläge"
     ),
     SVANESUND_TO_KOLHATTAN(
         routeId = 35,
@@ -119,7 +137,10 @@ enum class RouteDirection(
         fromHarborId = 75,
         toHarborId = 76,
         crossingMinutes = 5,
-        navQuery = "Kolhättan Färjeläge"
+        departureLatitude = 58.1367,
+        departureLongitude = 11.8315,
+        departureHarborName = "Svanesund Färjeläge",
+        navQuery = "Svanesund Färjeläge"
     ),
 
     // 4. Gullmarsleden (Route 25)
@@ -131,7 +152,10 @@ enum class RouteDirection(
         fromHarborId = 49,
         toHarborId = 50,
         crossingMinutes = 10,
-        navQuery = "Skår Färjeläge"
+        departureLatitude = 58.3045,
+        departureLongitude = 11.4580,
+        departureHarborName = "Finnsbo Färjeläge",
+        navQuery = "Finnsbo Färjeläge"
     ),
     SKAR_TO_FINNSBO(
         routeId = 25,
@@ -141,7 +165,10 @@ enum class RouteDirection(
         fromHarborId = 50,
         toHarborId = 49,
         crossingMinutes = 10,
-        navQuery = "Finnsbo Färjeläge"
+        departureLatitude = 58.2833,
+        departureLongitude = 11.5173,
+        departureHarborName = "Skår Färjeläge",
+        navQuery = "Skår Färjeläge"
     );
 
     val route: FerryRoute

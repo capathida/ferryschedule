@@ -26,8 +26,18 @@ class UserPreferences(context: Context) {
             savedDirection = value.defaultDirection
         }
 
+    var googleMapsApiKey: String
+        get() {
+            val saved = prefs.getString(KEY_MAPS_API_KEY, "") ?: ""
+            return if (saved.isNotBlank()) saved else com.example.ferryschedule.BuildConfig.GOOGLE_MAPS_API_KEY
+        }
+        set(value) {
+            prefs.edit().putString(KEY_MAPS_API_KEY, value.trim()).apply()
+        }
+
     companion object {
         private const val KEY_DIRECTION = "selected_route_direction"
+        private const val KEY_MAPS_API_KEY = "google_maps_api_key"
 
         @Volatile
         private var instance: UserPreferences? = null

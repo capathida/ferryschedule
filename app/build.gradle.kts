@@ -16,7 +16,10 @@ android {
         versionCode = 1
         versionName = "1.0"
 
-        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        val mapsKey = (project.findProperty("MAPS_API_KEY") as? String)
+            ?: System.getenv("MAPS_API_KEY")
+            ?: ""
+        buildConfigField("String", "GOOGLE_MAPS_API_KEY", "\"$mapsKey\"")
     }
 
     buildTypes {
@@ -37,6 +40,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 

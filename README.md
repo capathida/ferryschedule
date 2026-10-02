@@ -13,16 +13,22 @@ An intuitive, driver-optimized Android application providing live, real-time fer
 ### 🚗 Android Auto (In-Car Screen)
 * **Distraction-Free Glanceability**: Built strictly following Google's Android for Cars Design Guidelines (`androidx.car.app`).
 * **Multi-Route Selection (`[Välj led]`)**: Tap `[Välj led]` on the car screen to quickly switch between **Hönöleden**, **Björköleden**, **Svanesundsleden**, or **Gullmarsleden**.
+* **Smart Driving ETA & Departure Recommendation**: If Google Maps is configured, shows live driving time to the ferry dock (e.g. `🚗 Körtid: 18 min ➔ Ankomst 14:28`) and flags the exact departure you will catch (`⭐ REKOMMENDERAD: 14:35 (+7m marginal)`).
 * **Next 3 Departures**: Large departure time display, live countdown badges (`om 4 min`, `Avgår nu!`), route crossing time, and cancellation flags (`[INSTÄLLD]`).
 * **Smart Queue Forecast**: Shows live road delay and projected boarding:
   > *Fri väg (0 min kö) ➔ Du hinner med nästa färja!*  
   > *Bilkö: 8 min ➔ Prognos: Du hinner med 2:a färjan*
 * **Visual Road Map (`[Vägkarta]`)**: Full dual-lane schematic map on the car display (`PaneTemplate`) dynamically adapting to the selected ferry route with real-time road speeds and status colors.
-* **One-Tap Navigation (`[Navigera]`)**: Instantly launches turn-by-turn guidance to the active ferry slip in **Google Maps / Waze** directly on your car screen.
+* **One-Tap Navigation (`[Navigera]`)**: Instantly launches turn-by-turn guidance to the active ferry slip in **Google Maps / Waze** directly on your car screen using the slip's exact geographic coordinates.
 * **Auto-Refresh & Preference Sync**: Re-calculates and refreshes every 30 seconds automatically, and remembers your selected route across phone and car restarts.
 
 ### 📱 Phone Companion App (Jetpack Compose)
 * **Route Selector Bar**: One-tap filter chips at the top of the screen to switch between any ferry route instantly.
+* **Smart Driving ETA & Ferry Matcher**:
+  * Calculates real-time driving duration from current GPS location to the departure harbor.
+  * Prominently displays arrival time and automatically highlights which ferry you will catch (`🏆 DU HINNER DENNA (+7 min marginal vid kajen)`).
+  * Automatically marks earlier departures as missed (`⏳ Missas`).
+* **Zero-Setup & Seamless Fallback**: Operates 100% smoothly without an API key (standard timetable & queue forecast). Enter or paste an optional Google Maps API key at any time via the key icon in the top bar or via `local.properties`.
 * **Live Departures & Countdown**: Next departure hero card with prominent countdown badge.
 * **Trafiköversikt & Vägkarta**: High-resolution rendered road schematic showing both lanes for the active route, live segment speeds (km/h), and pointer to where traffic becomes free-flow (*"HÄR BÖRJAR DET BLI GRÖNT"*).
 * **Live Trafikverket CCTV Cameras**: Real-time camera feeds from Väg 155 with live timestamps.

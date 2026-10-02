@@ -11,10 +11,14 @@ data class FerryScheduleState(
     val hasCancellations: Boolean = false,
     val lastUpdated: LocalTime = LocalTime.now(),
     val isLoading: Boolean = false,
-    val errorMessage: String? = null
+    val errorMessage: String? = null,
+    val drivingEtaState: DrivingEtaState = DrivingEtaState.Idle
 ) {
     val nextDeparture: FerryDeparture?
         get() = departures.firstOrNull()
+
+    val recommendedDeparture: FerryDeparture?
+        get() = departures.firstOrNull { it.isRecommendedForEta }
 
     val upcomingDepartures: List<FerryDeparture>
         get() = if (departures.size > 1) departures.drop(1) else emptyList()

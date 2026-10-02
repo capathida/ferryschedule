@@ -5,6 +5,7 @@ import android.graphics.Bitmap
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.ferryschedule.data.local.UserPreferences
+import com.example.ferryschedule.data.repository.DrivingEtaRepository
 import com.example.ferryschedule.data.repository.FerryRepositoryImpl
 import com.example.ferryschedule.domain.model.FerryRoute
 import com.example.ferryschedule.domain.model.FerryScheduleState
@@ -23,7 +24,8 @@ import java.time.LocalTime
 
 class DeparturesViewModel(
     application: Application,
-    private val repository: FerryRepository = FerryRepositoryImpl.instance
+    private val repository: FerryRepository = FerryRepositoryImpl.instance,
+    private val drivingEtaRepository: DrivingEtaRepository = DrivingEtaRepository.getInstance(application)
 ) : AndroidViewModel(application) {
 
     private val userPrefs = UserPreferences.getInstance(application)
@@ -41,6 +43,9 @@ class DeparturesViewModel(
 
     var simulatedTime: LocalTime? = null
         private set
+
+    val currentGoogleMapsApiKey: String
+        get() = userPrefs.googleMapsApiKey
 
     private var tickerJob: Job? = null
 
@@ -74,6 +79,15 @@ class DeparturesViewModel(
         loadData()
     }
 
+    fun onLocationPermissionGranted() {
+        loadData()
+    }
+
+    fun saveGoogleMapsApiKey(apiKey: String) {
+        userPrefs.googleMapsApiKey = apiKey
+        loadData()
+    }
+
     fun setSimulatedTime(time: LocalTime?) {
         simulatedTime = time
         loadData()
@@ -87,15 +101,39 @@ class DeparturesViewModel(
             val trafficResult = repository.getTrafficStatus(referenceTime)
             val traffic = trafficResult.getOrNull()
 
-            val depResult = repository.getNextDepartures(
-                direction = currentDirection,
-                fromTime = referenceTime,
-                count = 3
-            )
+            val etaState = drivingEtaRepository.getDrivingEta(currentDirection, referenceTime)
+
+            val departures = if (etaState is com.example.ferryschedule.domain.model.DrivingEtaState.Success) {
+                val arrivalTime = etaState.eta.estimatedArrivalTime
+                val nowDepartures = repository.getNextDepartures(currentDirection, referenceTime, 2).getOrElse { emptyList() }
+                val targetDepartures = repository.getNextDepartures(currentDirection, arrivalTime, 3).getOrElse { emptyList() }
+
+                val combined = (nowDepartures + targetDepartures)
+                    .distinctBy { it.departureTime }
+                    .sortedBy { it.departureTime }
+
+                var recommendedAssigned = false
+                combined.map { dep ->
+                    val isMissed = dep.departureTime.isBefore(arrivalTime)
+                    val isRecommended = !isMissed && !dep.isCancelled && !recommendedAssigned
+                    if (isRecommended) recommendedAssigned = true
+
+                    val bufferMinutes = if (isRecommended) {
+                        java.time.temporal.ChronoUnit.MINUTES.between(arrivalTime, dep.departureTime).toInt()
+                    } else null
+
+                    dep.copy(
+                        isMissedByEta = isMissed,
+                        isRecommendedForEta = isRecommended,
+                        etaBufferMinutes = bufferMinutes
+                    )
+                }
+            } else {
+                repository.getNextDepartures(currentDirection, referenceTime, 3).getOrElse { emptyList() }
+            }
+
             val camerasResult = repository.getTrafficCameras()
             val cameras = camerasResult.getOrElse { emptyList() }
-
-            val departures = depResult.getOrElse { emptyList() }
 
             _uiState.update {
                 it.copy(
@@ -104,7 +142,8 @@ class DeparturesViewModel(
                     cameras = cameras,
                     lastUpdated = referenceTime,
                     isLoading = false,
-                    errorMessage = null
+                    errorMessage = null,
+                    drivingEtaState = etaState
                 )
             }
 

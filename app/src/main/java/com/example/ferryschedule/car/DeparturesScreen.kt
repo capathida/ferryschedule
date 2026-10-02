@@ -32,13 +32,15 @@ import java.time.LocalTime
  */
 class DeparturesScreen(
     carContext: CarContext,
-    private val repository: FerryRepository = FerryRepositoryImpl.instance
+    private val repository: FerryRepository = FerryRepositoryImpl.instance,
+    private val etaRepository: com.example.ferryschedule.data.repository.DrivingEtaRepository = com.example.ferryschedule.data.repository.DrivingEtaRepository.getInstance(carContext)
 ) : Screen(carContext), DefaultLifecycleObserver {
 
     private val userPrefs = UserPreferences.getInstance(carContext)
     private var currentDirection: RouteDirection = userPrefs.savedDirection
     private var departures: List<FerryDeparture> = emptyList()
     private var trafficStatus: TrafficStatus? = null
+    private var drivingEtaState: com.example.ferryschedule.domain.model.DrivingEtaState = com.example.ferryschedule.domain.model.DrivingEtaState.Idle
     private var isLoading: Boolean = true
     private var refreshJob: Job? = null
 
@@ -60,15 +62,47 @@ class DeparturesScreen(
 
     private fun loadData() {
         lifecycleScope.launch {
-            val trafficResult = repository.getTrafficStatus()
+            val now = LocalTime.now()
+            val trafficResult = repository.getTrafficStatus(now)
             trafficStatus = trafficResult.getOrNull()
 
-            val depResult = repository.getNextDepartures(
-                direction = currentDirection,
-                fromTime = LocalTime.now(),
-                count = 3
-            )
-            departures = depResult.getOrElse { emptyList() }
+            val etaState = etaRepository.getDrivingEta(currentDirection, now)
+            drivingEtaState = etaState
+
+            if (etaState is com.example.ferryschedule.domain.model.DrivingEtaState.Success) {
+                val arrivalTime = etaState.eta.estimatedArrivalTime
+                val nowDepartures = repository.getNextDepartures(currentDirection, now, 2).getOrElse { emptyList() }
+                val targetDepartures = repository.getNextDepartures(currentDirection, arrivalTime, 3).getOrElse { emptyList() }
+
+                val combined = (nowDepartures + targetDepartures)
+                    .distinctBy { it.departureTime }
+                    .sortedBy { it.departureTime }
+
+                var recommendedAssigned = false
+                departures = combined.map { dep ->
+                    val isMissed = dep.departureTime.isBefore(arrivalTime)
+                    val isRecommended = !isMissed && !dep.isCancelled && !recommendedAssigned
+                    if (isRecommended) recommendedAssigned = true
+
+                    val bufferMinutes = if (isRecommended) {
+                        java.time.temporal.ChronoUnit.MINUTES.between(arrivalTime, dep.departureTime).toInt()
+                    } else null
+
+                    dep.copy(
+                        isMissedByEta = isMissed,
+                        isRecommendedForEta = isRecommended,
+                        etaBufferMinutes = bufferMinutes
+                    )
+                }
+            } else {
+                val depResult = repository.getNextDepartures(
+                    direction = currentDirection,
+                    fromTime = now,
+                    count = 3
+                )
+                departures = depResult.getOrElse { emptyList() }
+            }
+
             isLoading = false
             invalidate()
         }
@@ -111,9 +145,11 @@ class DeparturesScreen(
     private fun startNavigation() {
         try {
             val destQuery = currentDirection.navQuery
+            val lat = currentDirection.departureLatitude
+            val lng = currentDirection.departureLongitude
             val intent = Intent(
                 CarContext.ACTION_NAVIGATE,
-                Uri.parse("geo:57.7088,11.7100?q=${Uri.encode(destQuery)}")
+                Uri.parse("geo:$lat,$lng?q=${Uri.encode(destQuery)}")
             )
             carContext.startCarApp(intent)
         } catch (e: Exception) {
@@ -159,6 +195,24 @@ class DeparturesScreen(
                 .build()
         }
 
+        // Add driving ETA banner row if available
+        val currentEta = (drivingEtaState as? com.example.ferryschedule.domain.model.DrivingEtaState.Success)?.eta
+        if (currentEta != null) {
+            val rec = departures.firstOrNull { it.isRecommendedForEta }
+            val recSub = if (rec != null) {
+                "Hinner ${rec.formattedTime} (+${rec.etaBufferMinutes ?: 0}m marginal)"
+            } else {
+                "Mål: ${currentEta.destinationName}"
+            }
+            val timeFormatter = java.time.format.DateTimeFormatter.ofPattern("HH:mm")
+            listBuilder.addItem(
+                Row.Builder()
+                    .setTitle("🚗 Körtid: ${currentEta.formattedDuration} (${currentEta.formattedDistance})")
+                    .addText("Ankomst ${currentEta.estimatedArrivalTime.format(timeFormatter)} ➔ $recSub")
+                    .build()
+            )
+        }
+
         if (departures.isEmpty()) {
             listBuilder.setNoItemsMessage("Inga avgångar hittades just nu för ${currentDirection.route.title}")
         } else {
@@ -169,32 +223,30 @@ class DeparturesScreen(
                 else -> null
             }
 
-            departures.forEachIndexed { index, dep ->
+            departures.take(5).forEachIndexed { index, dep ->
                 val rowBuilder = Row.Builder()
-                when (index) {
-                    0 -> {
-                        val titlePrefix = if (dep.isCancelled) "INSTÄLLD: " else "Nästa: "
-                        rowBuilder.setTitle("$titlePrefix${dep.formattedTime}  (${dep.countdownText})")
-
-                        val queueAdvice = if (queueBreakdown != null && queueBreakdown.roadQueueMinutes > 0) {
-                            "Bilkö: ${queueBreakdown.roadQueueMinutes} min ➔ Prognos: ${queueBreakdown.estimatedBoardingFerryTime}"
-                        } else {
-                            "Fri väg (0 min kö) ➔ Överfartstid ~${currentDirection.crossingMinutes} min"
-                        }
-                        rowBuilder.addText(queueAdvice)
-                    }
-                    1 -> {
-                        val titlePrefix = if (dep.isCancelled) "Avgång 2 [INSTÄLLD]: " else "Avgång 2: "
-                        rowBuilder.setTitle("$titlePrefix${dep.formattedTime}  (${dep.countdownText})")
-                    }
-                    2 -> {
-                        val titlePrefix = if (dep.isCancelled) "Avgång 3 [INSTÄLLD]: " else "Avgång 3: "
-                        rowBuilder.setTitle("$titlePrefix${dep.formattedTime}  (${dep.countdownText})")
-                    }
-                    else -> {
-                        rowBuilder.setTitle("${dep.formattedTime} (${dep.countdownText})")
-                    }
+                val prefix = when {
+                    dep.isCancelled -> "INSTÄLLD: "
+                    dep.isRecommendedForEta -> "⭐ REKOMMENDERAD: "
+                    dep.isMissedByEta -> "⏳ Missas: "
+                    index == 0 -> "Nästa: "
+                    else -> "Avgång: "
                 }
+
+                rowBuilder.setTitle("$prefix${dep.formattedTime}  (${dep.countdownText})")
+
+                if (dep.isRecommendedForEta) {
+                    val buffer = dep.etaBufferMinutes ?: 0
+                    rowBuilder.addText("Beräknad ankomst ger $buffer min marginal vid kajen")
+                } else if (index == 0) {
+                    val queueAdvice = if (queueBreakdown != null && queueBreakdown.roadQueueMinutes > 0) {
+                        "Bilkö: ${queueBreakdown.roadQueueMinutes} min ➔ Prognos: ${queueBreakdown.estimatedBoardingFerryTime}"
+                    } else {
+                        "Fri väg (0 min kö) ➔ Överfartstid ~${currentDirection.crossingMinutes} min"
+                    }
+                    rowBuilder.addText(queueAdvice)
+                }
+
                 listBuilder.addItem(rowBuilder.build())
             }
         }

@@ -1,7 +1,11 @@
 package com.example.ferryschedule.phone.ui
 
+import android.Manifest
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -14,14 +18,17 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CameraAlt
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.DirectionsBoat
+import androidx.compose.material.icons.filled.DirectionsCar
+import androidx.compose.material.icons.filled.Key
+import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Navigation
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -32,14 +39,12 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
 import coil.compose.AsyncImage
-import com.example.ferryschedule.domain.model.FerryDeparture
-import com.example.ferryschedule.domain.model.FerryRoute
-import com.example.ferryschedule.domain.model.RouteDirection
-import com.example.ferryschedule.domain.model.TrafficCamera
-import com.example.ferryschedule.domain.model.TrafficStatus
+import com.example.ferryschedule.domain.model.*
 import com.example.ferryschedule.phone.DeparturesViewModel
 import java.time.LocalTime
+import java.time.format.DateTimeFormatter
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -50,6 +55,42 @@ fun DeparturesPhoneScreen(
     val uiState by viewModel.uiState.collectAsState()
     val corridorBitmap by viewModel.corridorBitmap.collectAsState()
     val context = LocalContext.current
+
+    var showApiKeyDialog by remember { mutableStateOf(false) }
+
+    val permissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissions ->
+        val fineGranted = permissions[Manifest.permission.ACCESS_FINE_LOCATION] == true
+        val coarseGranted = permissions[Manifest.permission.ACCESS_COARSE_LOCATION] == true
+        if (fineGranted || coarseGranted) {
+            viewModel.onLocationPermissionGranted()
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        val hasFine = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
+        val hasCoarse = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
+        if (!hasFine && !hasCoarse) {
+            permissionLauncher.launch(
+                arrayOf(
+                    Manifest.permission.ACCESS_FINE_LOCATION,
+                    Manifest.permission.ACCESS_COARSE_LOCATION
+                )
+            )
+        }
+    }
+
+    if (showApiKeyDialog) {
+        ApiKeyDialog(
+            initialKey = viewModel.currentGoogleMapsApiKey,
+            onSave = {
+                viewModel.saveGoogleMapsApiKey(it)
+                showApiKeyDialog = false
+            },
+            onDismiss = { showApiKeyDialog = false }
+        )
+    }
 
     Scaffold(
         topBar = {
@@ -69,6 +110,13 @@ fun DeparturesPhoneScreen(
                     }
                 },
                 actions = {
+                    IconButton(onClick = { showApiKeyDialog = true }) {
+                        Icon(
+                            imageVector = Icons.Default.Key,
+                            contentDescription = "Google Maps API-nyckel",
+                            tint = if (viewModel.currentGoogleMapsApiKey.isNotBlank()) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline
+                        )
+                    }
                     IconButton(onClick = { viewModel.refresh() }) {
                         Icon(
                             imageVector = Icons.Default.Refresh,
@@ -127,8 +175,37 @@ fun DeparturesPhoneScreen(
                     destination = uiState.direction.destinationName,
                     onSwap = { viewModel.toggleDirection() },
                     onNavigate = {
-                        val query = uiState.direction.navQuery
-                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse("geo:57.7088,11.7100?q=$query"))
+                        val dir = uiState.direction
+                        val intent = Intent(
+                            Intent.ACTION_VIEW,
+                            Uri.parse("geo:${dir.departureLatitude},${dir.departureLongitude}?q=${Uri.encode(dir.navQuery)}")
+                        )
+                        context.startActivity(intent)
+                    }
+                )
+            }
+
+            // Driving ETA to Ferry Section
+            item {
+                DrivingEtaSection(
+                    drivingEtaState = uiState.drivingEtaState,
+                    direction = uiState.direction,
+                    recommendedDeparture = uiState.recommendedDeparture,
+                    onConfigureApiKey = { showApiKeyDialog = true },
+                    onRequestPermission = {
+                        permissionLauncher.launch(
+                            arrayOf(
+                                Manifest.permission.ACCESS_FINE_LOCATION,
+                                Manifest.permission.ACCESS_COARSE_LOCATION
+                            )
+                        )
+                    },
+                    onNavigate = {
+                        val dir = uiState.direction
+                        val intent = Intent(
+                            Intent.ACTION_VIEW,
+                            Uri.parse("geo:${dir.departureLatitude},${dir.departureLongitude}?q=${Uri.encode(dir.navQuery)}")
+                        )
                         context.startActivity(intent)
                     }
                 )
@@ -448,6 +525,50 @@ fun HeroDepartureCard(
             HorizontalDivider(color = MaterialTheme.colorScheme.surfaceVariant)
             Spacer(modifier = Modifier.height(10.dp))
 
+            // ETA Recommendation / Missed Notice
+            if (departure.isRecommendedForEta) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(Color(0xFFECFDF5))
+                        .padding(10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.CheckCircle,
+                        contentDescription = null,
+                        tint = Color(0xFF059669),
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "🏆 DU HINNER DENNA (+${departure.etaBufferMinutes ?: 0} min marginal vid kajen)",
+                        style = MaterialTheme.typography.bodySmall,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF059669)
+                    )
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+            } else if (departure.isMissedByEta) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(Color(0xFFFEF2F2))
+                        .padding(10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "⏳ MISSAS • Din beräknade ankomsttid är efter avgången",
+                        style = MaterialTheme.typography.bodySmall,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFFDC2626)
+                    )
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+            }
+
             // Smart Queue Breakdown
             val queue = if (direction == RouteDirection.VARHOLMEN_TO_HONO) {
                 trafficStatus?.varholmen?.breakdown
@@ -542,12 +663,46 @@ fun UpcomingDepartureRow(
                 )
             }
 
-            Text(
-                text = departure.countdownText,
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.SemiBold,
-                color = if (departure.isCancelled) Color(0xFFE53935) else MaterialTheme.colorScheme.secondary
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (departure.isRecommendedForEta) {
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(Color(0xFFD1FAE5))
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                    ) {
+                        Text(
+                            text = "⭐ Hinner (+${departure.etaBufferMinutes ?: 0}m)",
+                            color = Color(0xFF065F46),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                } else if (departure.isMissedByEta) {
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(Color(0xFFFEE2E2))
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                    ) {
+                        Text(
+                            text = "Missas",
+                            color = Color(0xFF991B1B),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                }
+
+                Text(
+                    text = departure.countdownText,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = if (departure.isCancelled) Color(0xFFE53935) else MaterialTheme.colorScheme.secondary
+                )
+            }
         }
     }
 }
@@ -644,3 +799,262 @@ fun TimeSimulatorSection(
         }
     }
 }
+
+@Composable
+fun DrivingEtaSection(
+    drivingEtaState: DrivingEtaState,
+    direction: RouteDirection,
+    recommendedDeparture: FerryDeparture?,
+    onConfigureApiKey: () -> Unit,
+    onRequestPermission: () -> Unit,
+    onNavigate: () -> Unit
+) {
+    when (drivingEtaState) {
+        is DrivingEtaState.Success -> {
+            val eta = drivingEtaState.eta
+            Card(
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
+                ),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.DirectionsCar,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "KÖRTID TILL FÄRJAN",
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+
+                        FilledTonalButton(
+                            onClick = onNavigate,
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                            modifier = Modifier.height(34.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Navigation,
+                                contentDescription = null,
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(text = "Navigera", fontSize = 12.sp)
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.Bottom
+                    ) {
+                        Column {
+                            Text(
+                                text = eta.formattedDuration,
+                                fontSize = 32.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                text = "${eta.formattedDistance} • Ankomst ~${eta.estimatedArrivalTime.format(DateTimeFormatter.ofPattern("HH:mm"))}",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+
+                        if (recommendedDeparture != null) {
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(Color(0xFFD1FAE5))
+                                    .padding(horizontal = 12.dp, vertical = 8.dp)
+                            ) {
+                                Column(horizontalAlignment = Alignment.End) {
+                                    Text(
+                                        text = "Hinner avgång",
+                                        fontSize = 11.sp,
+                                        color = Color(0xFF065F46)
+                                    )
+                                    Text(
+                                        text = "kl ${recommendedDeparture.formattedTime}",
+                                        fontSize = 16.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color(0xFF065F46)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        is DrivingEtaState.NoApiKey -> {
+            Card(
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(
+                        modifier = Modifier.weight(1f),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Key,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.outline,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Text(
+                            text = "Lägg till Google Maps API-nyckel för realtidskörtid från din bil",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    TextButton(onClick = onConfigureApiKey) {
+                        Text(text = "Ställ in", fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        }
+        is DrivingEtaState.NoLocationPermission -> {
+            Card(
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(
+                        modifier = Modifier.weight(1f),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.LocationOn,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Text(
+                            text = "Tillåt platsåtkomst för att räkna ut körtid till färjeläget",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    TextButton(onClick = onRequestPermission) {
+                        Text(text = "Tillåt", fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        }
+        is DrivingEtaState.Error -> {
+            Card(
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.3f)),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        text = drivingEtaState.message,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.weight(1f)
+                    )
+                    TextButton(onClick = onConfigureApiKey) {
+                        Text(text = "Ändra nyckel")
+                    }
+                }
+            }
+        }
+        else -> {
+            // Idle or LocationUnavailable: silent
+        }
+    }
+}
+
+@Composable
+fun ApiKeyDialog(
+    initialKey: String,
+    onSave: (String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var apiKeyText by remember { mutableStateOf(initialKey) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(text = "Google Maps API-nyckel") },
+        text = {
+            Column {
+                Text(
+                    text = "Med en Google Maps API-nyckel (Routes API) kan appen räkna ut exakt körtid med realtidsköer från din GPS-position till färjeläget och visa vilken avgång du hinner med.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(14.dp))
+                OutlinedTextField(
+                    value = apiKeyText,
+                    onValueChange = { apiKeyText = it },
+                    label = { Text("API-nyckel") },
+                    placeholder = { Text("AIzaSy...") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        },
+        confirmButton = {
+            Button(onClick = { onSave(apiKeyText) }) {
+                Text("Spara")
+            }
+        },
+        dismissButton = {
+            Row {
+                if (apiKeyText.isNotBlank()) {
+                    TextButton(onClick = {
+                        apiKeyText = ""
+                        onSave("")
+                    }) {
+                        Text("Rensa", color = MaterialTheme.colorScheme.error)
+                    }
+                }
+                TextButton(onClick = onDismiss) {
+                    Text("Avbryt")
+                }
+            }
+        }
+    )
+}
+

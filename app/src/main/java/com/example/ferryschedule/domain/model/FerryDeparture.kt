@@ -13,7 +13,10 @@ data class FerryDeparture(
     val isDeviated: Boolean = false,
     val deviationMessage: String? = null,
     val departureTimestamp: Long = 0L,
-    val queueBreakdown: QueueBreakdown? = null
+    val queueBreakdown: QueueBreakdown? = null,
+    val isRecommendedForEta: Boolean = false,
+    val isMissedByEta: Boolean = false,
+    val etaBufferMinutes: Int? = null
 ) {
     val formattedTime: String
         get() = departureTime.format(TIME_FORMATTER)
