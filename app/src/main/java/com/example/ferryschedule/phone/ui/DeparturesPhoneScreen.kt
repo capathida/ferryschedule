@@ -21,6 +21,7 @@ import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.DirectionsBoat
 import androidx.compose.material.icons.filled.DirectionsCar
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Navigation
@@ -43,6 +44,7 @@ import androidx.core.content.ContextCompat
 import coil.compose.AsyncImage
 import com.example.ferryschedule.domain.model.*
 import com.example.ferryschedule.phone.DeparturesViewModel
+import com.example.ferryschedule.phone.ui.components.*
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 
@@ -57,6 +59,7 @@ fun DeparturesPhoneScreen(
     val context = LocalContext.current
 
     var showApiKeyDialog by remember { mutableStateOf(false) }
+    var showAboutDialog by remember { mutableStateOf(false) }
 
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
@@ -92,24 +95,45 @@ fun DeparturesPhoneScreen(
         )
     }
 
+    if (showAboutDialog) {
+        AppAboutDialog(onDismiss = { showAboutDialog = false })
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
                 title = {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = Icons.Default.DirectionsBoat,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.padding(end = 8.dp)
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .clickable { showAboutDialog = true }
+                    ) {
+                        AppLogoBadge(
+                            modifier = Modifier.padding(end = 10.dp)
                         )
-                        Text(
-                            text = "${uiState.direction.route.title} Live",
-                            fontWeight = FontWeight.Bold
-                        )
+                        Column {
+                            Text(
+                                text = "${uiState.direction.route.title} Live",
+                                fontWeight = FontWeight.Bold,
+                                style = MaterialTheme.typography.titleMedium,
+                                maxLines = 1
+                            )
+                            Text(
+                                text = AppLogoConfig.BRAND_NAME,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.primary,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
                     }
                 },
                 actions = {
+                    IconButton(onClick = { showAboutDialog = true }) {
+                        Icon(
+                            imageVector = Icons.Default.Info,
+                            contentDescription = "Om appen"
+                        )
+                    }
                     IconButton(onClick = { showApiKeyDialog = true }) {
                         Icon(
                             imageVector = Icons.Default.Key,

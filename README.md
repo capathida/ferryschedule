@@ -65,6 +65,8 @@ com.example.ferryschedule/
 │   ├── DeparturesViewModel.kt        # State management, camera loader, ticker
 │   └── ui/
 │       ├── DeparturesPhoneScreen.kt  # Jetpack Compose UI (Route chips, Hero card, map)
+│       ├── components/
+│       │   └── AppLogo.kt            # Centralized branding, logo badge & about dialog
 │       └── theme/Theme.kt            # Nordic maritime Material 3 theme
 ├── domain/
 │   ├── model/
@@ -87,6 +89,8 @@ com.example.ferryschedule/
 └── util/
     └── RoadCorridorBitmapGenerator.kt # Renders dynamic dual-lane road schematic into a Bitmap
 ```
+
+See [docs/LOGO_GUIDE.md](docs/LOGO_GUIDE.md) for how to replace or update the app logo in 1 step.
 
 ---
 
