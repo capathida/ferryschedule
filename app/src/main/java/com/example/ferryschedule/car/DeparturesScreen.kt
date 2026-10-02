@@ -60,13 +60,13 @@ class DeparturesScreen(
         refreshJob = null
     }
 
-    private fun loadData() {
+    private fun loadData(forceRefresh: Boolean = false) {
         lifecycleScope.launch {
             val now = LocalTime.now()
             val trafficResult = repository.getTrafficStatus(now)
             trafficStatus = trafficResult.getOrNull()
 
-            val etaState = etaRepository.getDrivingEta(currentDirection, now)
+            val etaState = etaRepository.getDrivingEta(currentDirection, now, forceRefresh = forceRefresh)
             drivingEtaState = etaState
 
             if (etaState is com.example.ferryschedule.domain.model.DrivingEtaState.Success) {
@@ -113,7 +113,7 @@ class DeparturesScreen(
         refreshJob = lifecycleScope.launch {
             while (isActive) {
                 delay(30_000L) // Refresh every 30 seconds
-                loadData()
+                loadData(forceRefresh = false)
             }
         }
     }

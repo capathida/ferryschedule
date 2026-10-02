@@ -20,6 +20,12 @@ data class CachedDrivingEta(
     val distanceMeters: Int
 )
 
+data class CachedError(
+    val error: DrivingEtaState.Error,
+    val timestampMs: Long,
+    val cooldownMs: Long
+)
+
 class DrivingEtaRepository(
     private val context: Context,
     private val locationProvider: UserLocationProvider = UserLocationProvider(context),
@@ -28,6 +34,23 @@ class DrivingEtaRepository(
 ) {
 
     private val cacheMap = ConcurrentHashMap<RouteDirection, CachedDrivingEta>()
+    private val errorCacheMap = ConcurrentHashMap<RouteDirection, CachedError>()
+
+    val todayCallCount: Int
+        get() = userPrefs.getTodayGoogleMapsApiCallCount()
+
+    val maxDailyCalls: Int
+        get() = userPrefs.maxDailyCalls
+
+    fun resetCallCount() {
+        userPrefs.resetGoogleMapsApiCallCount()
+        clearCache()
+    }
+
+    fun clearCache() {
+        cacheMap.clear()
+        errorCacheMap.clear()
+    }
 
     private val sha1Fingerprint: String? by lazy {
         try {
@@ -72,13 +95,37 @@ class DrivingEtaRepository(
             return DrivingEtaState.NoApiKey
         }
 
+        val nowMs = System.currentTimeMillis()
+
+        // -------------------------------------------------------------------------
+        // LAGER 1: Fel-cooldown & Backoff (Skyddar mot loopande anrop vid API-fel)
+        // Om Google returnerat fel (t.ex. 403 eller 429), pausa anrop i 5-30 min
+        // -------------------------------------------------------------------------
+        if (!forceRefresh) {
+            val cachedErr = errorCacheMap[direction]
+            if (cachedErr != null) {
+                val age = nowMs - cachedErr.timestampMs
+                if (age < cachedErr.cooldownMs) {
+                    val remainingMins = ((cachedErr.cooldownMs - age) / 60_000L).coerceAtLeast(1)
+                    return cachedErr.error.copy(
+                        message = "${cachedErr.error.message} (Pausad i $remainingMins min för att skydda kvoten)"
+                    )
+                } else {
+                    errorCacheMap.remove(direction)
+                }
+            }
+        }
+
         val location = locationProvider.getLastKnownLocation()
             ?: return DrivingEtaState.LocationUnavailable
 
-        val nowMs = System.currentTimeMillis()
         val cached = cacheMap[direction]
 
-        // --- LAGER 1 & LAGER 2: Cooldown, Rörelsetröskel & Caching ---
+        // -------------------------------------------------------------------------
+        // LAGER 2: Smart Körtids-cache & Lokal Extrapolering
+        // Återanvänder beräknad körtid utan API-anrop!
+        // 10 min normal cooldown, 30 min om bilen inte förflyttat sig > 1.5 km.
+        // -------------------------------------------------------------------------
         if (cached != null && !forceRefresh) {
             val ageMs = nowMs - cached.timestampMs
             val distanceMovedMeters = calculateDistanceMeters(
@@ -86,11 +133,11 @@ class DrivingEtaRepository(
                 location.latitude, location.longitude
             )
 
-            val isWithinCooldown = ageMs < COOLDOWN_MS
-            val isStationaryAndFresh = distanceMovedMeters < MOVEMENT_THRESHOLD_METERS && ageMs < MAX_CACHE_AGE_MS
+            val isWithinStandardCooldown = ageMs < SUCCESS_CACHE_COOLDOWN_MS
+            val isStationaryAndFresh = distanceMovedMeters < MOVEMENT_THRESHOLD_METERS && ageMs < STATIONARY_CACHE_MAX_AGE_MS
 
-            if (isWithinCooldown || isStationaryAndFresh) {
-                // Återanvänd beräknad körtid utan API-anrop! Uppdatera ankomsttid till aktuell tid + körtid
+            if (isWithinStandardCooldown || isStationaryAndFresh) {
+                // Lokal extrapolering: Uppdatera ankomsttid med aktuell tid + sparad körtid (0 API-anrop!)
                 val updatedArrival = referenceTime.plusMinutes(cached.durationMinutes.toLong())
                 val updatedEta = cached.eta.copy(
                     estimatedArrivalTime = updatedArrival,
@@ -101,8 +148,11 @@ class DrivingEtaRepository(
             }
         }
 
-        // --- LAGER 3: Daglig kvotspärr (max 80 anrop/dygn för att hålla sig under Googles 100-tak) ---
-        if (!userPrefs.canMakeGoogleMapsApiCall(maxCallsPerDay = MAX_DAILY_CALLS)) {
+        // -------------------------------------------------------------------------
+        // LAGER 3: Strikt Daglig Budgetspärr (max 50 anrop/dygn mot Googles 100-tak)
+        // -------------------------------------------------------------------------
+        val maxCalls = userPrefs.maxDailyCalls
+        if (!userPrefs.canMakeGoogleMapsApiCall(maxCallsPerDay = maxCalls)) {
             if (cached != null) {
                 val updatedArrival = referenceTime.plusMinutes(cached.durationMinutes.toLong())
                 return DrivingEtaState.Success(
@@ -113,10 +163,20 @@ class DrivingEtaRepository(
                     )
                 )
             }
-            return DrivingEtaState.Error("Dagsbudget för Google Maps uppnådd (${userPrefs.getTodayGoogleMapsApiCallCount()} anrop idag)")
+            return DrivingEtaState.Error(
+                "Dagsbudget för Google Maps uppnådd (${userPrefs.getTodayGoogleMapsApiCallCount()}/$maxCalls anrop idag). Skyddar din kvot.",
+                httpCode = 429
+            )
         }
 
-        // Gör nätverksanrop mot Google Maps Routes API
+        // -------------------------------------------------------------------------
+        // LAGER 4: Räkna anropet INNAN vi skickar (Google räknar alla HTTP-anrop i kvoten)
+        // -------------------------------------------------------------------------
+        userPrefs.recordGoogleMapsApiCall()
+
+        // -------------------------------------------------------------------------
+        // LAGER 5: Nätverksanrop mot Google Maps Routes API
+        // -------------------------------------------------------------------------
         val result = routesClient.computeDrivingEta(
             originLat = location.latitude,
             originLng = location.longitude,
@@ -127,17 +187,33 @@ class DrivingEtaRepository(
             sha1Cert = sha1Fingerprint
         )
 
-        if (result is DrivingEtaState.Success) {
-            userPrefs.recordGoogleMapsApiCall()
-            val eta = result.eta
-            cacheMap[direction] = CachedDrivingEta(
-                eta = eta,
-                timestampMs = nowMs,
-                originLat = location.latitude,
-                originLng = location.longitude,
-                durationMinutes = eta.durationMinutes,
-                distanceMeters = eta.distanceMeters
-            )
+        when (result) {
+            is DrivingEtaState.Success -> {
+                errorCacheMap.remove(direction)
+                val eta = result.eta
+                cacheMap[direction] = CachedDrivingEta(
+                    eta = eta,
+                    timestampMs = nowMs,
+                    originLat = location.latitude,
+                    originLng = location.longitude,
+                    durationMinutes = eta.durationMinutes,
+                    distanceMeters = eta.distanceMeters
+                )
+            }
+            is DrivingEtaState.Error -> {
+                // Dynamisk backoff baserat på felkod
+                val cooldown = when (result.httpCode) {
+                    429 -> ERROR_QUOTA_COOLDOWN_MS // 30 minuter vid kvotfel
+                    in 400..403 -> ERROR_AUTH_COOLDOWN_MS // 15 minuter vid behörighetsfel
+                    else -> ERROR_NETWORK_COOLDOWN_MS // 5 minuter vid andra fel
+                }
+                errorCacheMap[direction] = CachedError(
+                    error = result,
+                    timestampMs = nowMs,
+                    cooldownMs = cooldown
+                )
+            }
+            else -> {}
         }
 
         return result
@@ -150,10 +226,16 @@ class DrivingEtaRepository(
     }
 
     companion object {
-        const val COOLDOWN_MS = 90_000L // Minst 90 sekunder mellan Google Maps-anrop
-        const val MAX_CACHE_AGE_MS = 300_000L // 5 minuter max ålder om bilen står stilla (< 250m)
-        const val MOVEMENT_THRESHOLD_METERS = 250f // Bilen måste ha rört sig minst 250m
-        const val MAX_DAILY_CALLS = 80 // Håller god säkerhetsmarginal till 100 req/dag-taket
+        const val SUCCESS_CACHE_COOLDOWN_MS = 600_000L // 10 minuter standardcache för lyckat anrop
+        const val STATIONARY_CACHE_MAX_AGE_MS = 1_800_000L // 30 minuter om man står stilla (< 1.5 km)
+        const val MOVEMENT_THRESHOLD_METERS = 1_500f // 1.5 km förflyttning krävs för att bryta stationärcachen
+        const val ERROR_QUOTA_COOLDOWN_MS = 1_800_000L // 30 minuter cooldown om Google returnerar 429
+        const val ERROR_AUTH_COOLDOWN_MS = 900_000L // 15 minuter cooldown om Google returnerar 400-403
+        const val ERROR_NETWORK_COOLDOWN_MS = 300_000L // 5 minuter cooldown vid nätverksfel
+
+        const val COOLDOWN_MS = SUCCESS_CACHE_COOLDOWN_MS
+        const val MAX_CACHE_AGE_MS = STATIONARY_CACHE_MAX_AGE_MS
+        const val MAX_DAILY_CALLS = UserPreferences.DEFAULT_MAX_DAILY_CALLS
 
         @Volatile
         private var instance: DrivingEtaRepository? = null

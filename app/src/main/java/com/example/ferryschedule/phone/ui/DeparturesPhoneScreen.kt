@@ -87,6 +87,9 @@ fun DeparturesPhoneScreen(
     if (showApiKeyDialog) {
         ApiKeyDialog(
             initialKey = viewModel.currentGoogleMapsApiKey,
+            todayCalls = viewModel.todayGoogleMapsCallCount,
+            maxCalls = viewModel.maxDailyGoogleMapsCalls,
+            onResetCount = { viewModel.resetGoogleMapsCallCount() },
             onSave = {
                 viewModel.saveGoogleMapsApiKey(it)
                 showApiKeyDialog = false
@@ -1033,6 +1036,9 @@ fun DrivingEtaSection(
 @Composable
 fun ApiKeyDialog(
     initialKey: String,
+    todayCalls: Int,
+    maxCalls: Int,
+    onResetCount: () -> Unit,
     onSave: (String) -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -1042,13 +1048,58 @@ fun ApiKeyDialog(
         onDismissRequest = onDismiss,
         title = { Text(text = "Google Maps API-nyckel") },
         text = {
-            Column {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(
                     text = "Med en Google Maps API-nyckel (Routes API) kan appen räkna ut exakt körtid med realtidsköer från din GPS-position till färjeläget och visa vilken avgång du hinner med.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                Spacer(modifier = Modifier.height(14.dp))
+
+                // Kvotstatus-kort
+                Card(
+                    colors = CardDefaults.cardColors(
+                        containerColor = if (todayCalls >= maxCalls) {
+                            MaterialTheme.colorScheme.errorContainer
+                        } else {
+                            MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f)
+                        }
+                    ),
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Column(modifier = Modifier.padding(10.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "📊 Kvot idag: $todayCalls / $maxCalls anrop",
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = if (todayCalls >= maxCalls) MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.colorScheme.onSecondaryContainer
+                            )
+                            if (todayCalls > 0) {
+                                TextButton(
+                                    onClick = onResetCount,
+                                    contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp)
+                                ) {
+                                    Text("Nollställ", fontSize = 11.sp)
+                                }
+                            }
+                        }
+                        Text(
+                            text = if (todayCalls >= maxCalls) {
+                                "⚠️ Dagsgräns uppnådd! Nya anrop pausas för att skydda din Google-budget."
+                            } else {
+                                "🛡️ Kvotskydd aktivt: Rutter cachas i 10–30 minuter och anrop pausas automatiskt vid eventuella fel."
+                            },
+                            style = MaterialTheme.typography.bodySmall,
+                            fontSize = 11.sp,
+                            color = if (todayCalls >= maxCalls) MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.8f)
+                        )
+                    }
+                }
+
                 OutlinedTextField(
                     value = apiKeyText,
                     onValueChange = { apiKeyText = it },

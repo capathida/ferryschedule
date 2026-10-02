@@ -47,10 +47,21 @@ class DeparturesViewModel @JvmOverloads constructor(
     val currentGoogleMapsApiKey: String
         get() = userPrefs.googleMapsApiKey
 
+    val todayGoogleMapsCallCount: Int
+        get() = drivingEtaRepository.todayCallCount
+
+    val maxDailyGoogleMapsCalls: Int
+        get() = drivingEtaRepository.maxDailyCalls
+
+    fun resetGoogleMapsCallCount() {
+        drivingEtaRepository.resetCallCount()
+        loadData(forceRefresh = true)
+    }
+
     private var tickerJob: Job? = null
 
     init {
-        loadData()
+        loadData(forceRefresh = false)
         startTicker()
     }
 
@@ -58,42 +69,43 @@ class DeparturesViewModel @JvmOverloads constructor(
         val newDirection = route.defaultDirection
         userPrefs.savedDirection = newDirection
         _uiState.update { it.copy(direction = newDirection, isLoading = true) }
-        loadData()
+        loadData(forceRefresh = false)
     }
 
     fun selectDirection(direction: RouteDirection) {
         userPrefs.savedDirection = direction
         _uiState.update { it.copy(direction = direction, isLoading = true) }
-        loadData()
+        loadData(forceRefresh = false)
     }
 
     fun toggleDirection() {
         val nextDirection = _uiState.value.direction.opposite()
         userPrefs.savedDirection = nextDirection
         _uiState.update { it.copy(direction = nextDirection, isLoading = true) }
-        loadData()
+        loadData(forceRefresh = false)
     }
 
     fun refresh() {
         _uiState.update { it.copy(isLoading = true) }
-        loadData()
+        loadData(forceRefresh = true)
     }
 
     fun onLocationPermissionGranted() {
-        loadData()
+        loadData(forceRefresh = false)
     }
 
     fun saveGoogleMapsApiKey(apiKey: String) {
         userPrefs.googleMapsApiKey = apiKey
-        loadData()
+        drivingEtaRepository.clearCache()
+        loadData(forceRefresh = true)
     }
 
     fun setSimulatedTime(time: LocalTime?) {
         simulatedTime = time
-        loadData()
+        loadData(forceRefresh = false)
     }
 
-    private fun loadData() {
+    private fun loadData(forceRefresh: Boolean = false) {
         viewModelScope.launch {
             val referenceTime = simulatedTime ?: LocalTime.now()
             val currentDirection = _uiState.value.direction
@@ -101,7 +113,7 @@ class DeparturesViewModel @JvmOverloads constructor(
             val trafficResult = repository.getTrafficStatus(referenceTime)
             val traffic = trafficResult.getOrNull()
 
-            val etaState = drivingEtaRepository.getDrivingEta(currentDirection, referenceTime)
+            val etaState = drivingEtaRepository.getDrivingEta(currentDirection, referenceTime, forceRefresh = forceRefresh)
 
             val departures = if (etaState is com.example.ferryschedule.domain.model.DrivingEtaState.Success) {
                 val arrivalTime = etaState.eta.estimatedArrivalTime

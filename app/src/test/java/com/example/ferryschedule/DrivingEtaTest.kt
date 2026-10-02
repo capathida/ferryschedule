@@ -108,9 +108,9 @@ class DrivingEtaTest {
 
     @Test
     fun testRepositoryAntiSpamConstants() {
-        assertEquals(90_000L, com.example.ferryschedule.data.repository.DrivingEtaRepository.COOLDOWN_MS)
-        assertEquals(300_000L, com.example.ferryschedule.data.repository.DrivingEtaRepository.MAX_CACHE_AGE_MS)
-        assertEquals(250f, com.example.ferryschedule.data.repository.DrivingEtaRepository.MOVEMENT_THRESHOLD_METERS, 0.01f)
-        assertEquals(80, com.example.ferryschedule.data.repository.DrivingEtaRepository.MAX_DAILY_CALLS)
+        assertEquals(600_000L, com.example.ferryschedule.data.repository.DrivingEtaRepository.COOLDOWN_MS)
+        assertEquals(1_800_000L, com.example.ferryschedule.data.repository.DrivingEtaRepository.MAX_CACHE_AGE_MS)
+        assertEquals(1_500f, com.example.ferryschedule.data.repository.DrivingEtaRepository.MOVEMENT_THRESHOLD_METERS, 0.01f)
+        assertEquals(50, com.example.ferryschedule.data.repository.DrivingEtaRepository.MAX_DAILY_CALLS)
     }
 }

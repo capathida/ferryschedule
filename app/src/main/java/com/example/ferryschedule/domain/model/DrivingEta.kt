@@ -37,5 +37,5 @@ sealed interface DrivingEtaState {
     data object NoLocationPermission : DrivingEtaState
     data object LocationUnavailable : DrivingEtaState
     data class Success(val eta: DrivingEta) : DrivingEtaState
-    data class Error(val message: String) : DrivingEtaState
+    data class Error(val message: String, val httpCode: Int? = null) : DrivingEtaState
 }

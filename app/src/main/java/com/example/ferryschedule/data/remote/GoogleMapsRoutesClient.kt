@@ -53,6 +53,18 @@ data class ComputedRoute(
     val description: String? = null
 )
 
+@Serializable
+data class GoogleApiErrorResponse(
+    val error: GoogleApiErrorDetail? = null
+)
+
+@Serializable
+data class GoogleApiErrorDetail(
+    val code: Int? = null,
+    val message: String? = null,
+    val status: String? = null
+)
+
 class GoogleMapsRoutesClient(
     private val httpClient: OkHttpClient = OkHttpClient.Builder()
         .connectTimeout(10, TimeUnit.SECONDS)
@@ -107,11 +119,20 @@ class GoogleMapsRoutesClient(
                 if (!response.isSuccessful) {
                     val code = response.code
                     val errorBody = response.body?.string() ?: ""
-                    return@withContext when (code) {
-                        400, 403 -> DrivingEtaState.Error("Google Maps: Kontrollera API-nyckel ($code)")
-                        429 -> DrivingEtaState.Error("Google Maps: Kvotgräns överskriden")
-                        else -> DrivingEtaState.Error("Google Maps fel ($code)")
+                    val parsedDetail = try {
+                        json.decodeFromString<GoogleApiErrorResponse>(errorBody).error
+                    } catch (e: Exception) {
+                        null
                     }
+                    val detailMsg = parsedDetail?.message?.takeIf { it.isNotBlank() }
+                        ?: parsedDetail?.status?.takeIf { it.isNotBlank() }
+
+                    val msg = when {
+                        code == 429 -> "Google Maps: Kvotgräns överskriden (429)${if (detailMsg != null) " - $detailMsg" else ""}"
+                        code in 400..403 -> "Google Maps: $code${if (detailMsg != null) " - $detailMsg" else " (Kontrollera API-nyckel & restriktioner)"}"
+                        else -> "Google Maps fel ($code)${if (detailMsg != null) " - $detailMsg" else ""}"
+                    }
+                    return@withContext DrivingEtaState.Error(msg, httpCode = code)
                 }
 
                 val bodyString = response.body?.string() ?: ""
@@ -141,9 +162,9 @@ class GoogleMapsRoutesClient(
                 )
             }
         } catch (e: IOException) {
-            DrivingEtaState.Error("Kunde inte nå Google Maps nätverk")
+            DrivingEtaState.Error("Kunde inte nå Google Maps nätverk: ${e.message}", httpCode = -1)
         } catch (e: Exception) {
-            DrivingEtaState.Error("Fel vid beräkning: ${e.message}")
+            DrivingEtaState.Error("Fel vid beräkning: ${e.message}", httpCode = -2)
         }
     }
 }
