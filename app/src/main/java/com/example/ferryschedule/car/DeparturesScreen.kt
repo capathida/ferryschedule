@@ -13,8 +13,10 @@ import androidx.car.app.model.Template
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.lifecycleScope
+import com.example.ferryschedule.data.local.UserPreferences
 import com.example.ferryschedule.data.repository.FerryRepositoryImpl
 import com.example.ferryschedule.domain.model.FerryDeparture
+import com.example.ferryschedule.domain.model.FerryRoute
 import com.example.ferryschedule.domain.model.RouteDirection
 import com.example.ferryschedule.domain.model.TrafficStatus
 import com.example.ferryschedule.domain.repository.FerryRepository
@@ -33,7 +35,8 @@ class DeparturesScreen(
     private val repository: FerryRepository = FerryRepositoryImpl.instance
 ) : Screen(carContext), DefaultLifecycleObserver {
 
-    private var currentDirection: RouteDirection = RouteDirection.HONO_TO_VARHOLMEN
+    private val userPrefs = UserPreferences.getInstance(carContext)
+    private var currentDirection: RouteDirection = userPrefs.savedDirection
     private var departures: List<FerryDeparture> = emptyList()
     private var trafficStatus: TrafficStatus? = null
     private var isLoading: Boolean = true
@@ -83,25 +86,34 @@ class DeparturesScreen(
 
     private fun toggleDirection() {
         currentDirection = currentDirection.opposite()
+        userPrefs.savedDirection = currentDirection
         isLoading = true
         invalidate()
         loadData()
     }
 
+    private fun openRouteSelection() {
+        screenManager.push(
+            RouteSelectionCarScreen(carContext, currentDirection.route) { selectedRoute ->
+                currentDirection = selectedRoute.defaultDirection
+                userPrefs.savedDirection = currentDirection
+                isLoading = true
+                invalidate()
+                loadData()
+            }
+        )
+    }
+
     private fun openRoadStatus() {
-        screenManager.push(RoadStatusCarScreen(carContext, repository))
+        screenManager.push(RoadStatusCarScreen(carContext, currentDirection.route, repository))
     }
 
     private fun startNavigation() {
         try {
-            val destQuery = if (currentDirection == RouteDirection.VARHOLMEN_TO_HONO) {
-                "Lilla Varholmen Färjeläge"
-            } else {
-                "Hönö Färjeläge Pinan"
-            }
+            val destQuery = currentDirection.navQuery
             val intent = Intent(
                 CarContext.ACTION_NAVIGATE,
-                Uri.parse("geo:57.7088,11.7100?q=$destQuery")
+                Uri.parse("geo:57.7088,11.7100?q=${Uri.encode(destQuery)}")
             )
             carContext.startCarApp(intent)
         } catch (e: Exception) {
@@ -125,6 +137,12 @@ class DeparturesScreen(
             )
             .addAction(
                 Action.Builder()
+                    .setTitle("Välj led")
+                    .setOnClickListener { openRouteSelection() }
+                    .build()
+            )
+            .addAction(
+                Action.Builder()
                     .setTitle("Byt rutt")
                     .setOnClickListener { toggleDirection() }
                     .build()
@@ -135,19 +153,20 @@ class DeparturesScreen(
 
         if (isLoading && departures.isEmpty()) {
             return ListTemplate.Builder()
-                .setTitle("${currentDirection.originName} ➔ ${currentDirection.destinationName}")
+                .setTitle("${currentDirection.route.title}: ${currentDirection.originName} ➔ ${currentDirection.destinationName}")
                 .setActionStrip(actionStrip)
                 .setLoading(true)
                 .build()
         }
 
         if (departures.isEmpty()) {
-            listBuilder.setNoItemsMessage("Inga avgångar hittades just nu")
+            listBuilder.setNoItemsMessage("Inga avgångar hittades just nu för ${currentDirection.route.title}")
         } else {
-            val queueBreakdown = if (currentDirection == RouteDirection.VARHOLMEN_TO_HONO) {
-                trafficStatus?.varholmen?.breakdown
-            } else {
-                trafficStatus?.hono?.breakdown
+            val queueBreakdown = when (currentDirection) {
+                RouteDirection.HONO_TO_VARHOLMEN -> trafficStatus?.hono?.breakdown
+                RouteDirection.VARHOLMEN_TO_HONO -> trafficStatus?.varholmen?.breakdown
+                RouteDirection.VARHOLMEN_TO_BJORKO -> trafficStatus?.varholmen?.breakdown
+                else -> null
             }
 
             departures.forEachIndexed { index, dep ->
@@ -160,7 +179,7 @@ class DeparturesScreen(
                         val queueAdvice = if (queueBreakdown != null && queueBreakdown.roadQueueMinutes > 0) {
                             "Bilkö: ${queueBreakdown.roadQueueMinutes} min ➔ Prognos: ${queueBreakdown.estimatedBoardingFerryTime}"
                         } else {
-                            "Fri väg (0 min kö) ➔ Överfartstid ~12 min"
+                            "Fri väg (0 min kö) ➔ Överfartstid ~${currentDirection.crossingMinutes} min"
                         }
                         rowBuilder.addText(queueAdvice)
                     }
@@ -181,7 +200,7 @@ class DeparturesScreen(
         }
 
         return ListTemplate.Builder()
-            .setTitle("${currentDirection.originName} ➔ ${currentDirection.destinationName}")
+            .setTitle("${currentDirection.route.title}: ${currentDirection.originName} ➔ ${currentDirection.destinationName}")
             .setActionStrip(actionStrip)
             .setSingleList(listBuilder.build())
             .build()

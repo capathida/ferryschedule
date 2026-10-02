@@ -114,4 +114,34 @@ class HonoTimetableEngineTest {
         assertEquals(3, honoDepartures.size)
         assertEquals(3, varholmenDepartures.size)
     }
+
+    @Test
+    fun testBjorkoledenSchedule() {
+        val time = LocalTime.of(10, 0)
+        val deps = HonoTimetableEngine.getNextDepartures(time, RouteDirection.BJORKO_TO_VARHOLMEN)
+
+        assertEquals(3, deps.size)
+        assertTrue(deps[0].statusRemarks?.contains("6 min") == true)
+        assertEquals(RouteDirection.VARHOLMEN_TO_BJORKO, RouteDirection.BJORKO_TO_VARHOLMEN.opposite())
+    }
+
+    @Test
+    fun testSvanesundsledenSchedule() {
+        val time = LocalTime.of(10, 0)
+        val deps = HonoTimetableEngine.getNextDepartures(time, RouteDirection.KOLHATTAN_TO_SVANESUND)
+
+        assertEquals(3, deps.size)
+        assertTrue(deps[0].statusRemarks?.contains("5 min") == true)
+        assertEquals(RouteDirection.SVANESUND_TO_KOLHATTAN, RouteDirection.KOLHATTAN_TO_SVANESUND.opposite())
+    }
+
+    @Test
+    fun testGullmarsledenSchedule() {
+        val time = LocalTime.of(10, 0)
+        val deps = HonoTimetableEngine.getNextDepartures(time, RouteDirection.FINNSBO_TO_SKAR)
+
+        assertEquals(3, deps.size)
+        assertTrue(deps[0].statusRemarks?.contains("10 min") == true)
+        assertEquals(RouteDirection.SKAR_TO_FINNSBO, RouteDirection.FINNSBO_TO_SKAR.opposite())
+    }
 }

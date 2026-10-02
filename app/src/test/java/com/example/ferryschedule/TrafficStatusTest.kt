@@ -2,6 +2,7 @@ package com.example.ferryschedule
 
 import com.example.ferryschedule.data.remote.TrafikverketService
 import com.example.ferryschedule.domain.model.CongestionLevel
+import com.example.ferryschedule.domain.model.RouteDirection
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
@@ -58,5 +59,20 @@ class TrafficStatusTest {
 
         val pinanSeg = status.segments.find { it.id == "hono_pinan" }
         assertEquals(CongestionLevel.GREEN, pinanSeg?.level)
+    }
+
+    @Test
+    fun testLiveDeparturesForBjorkoAndSvanesund() = runBlocking {
+        val bjorkoDeps = service.fetchLiveDepartures(RouteDirection.BJORKO_TO_VARHOLMEN)
+        if (bjorkoDeps.isNotEmpty()) {
+            assertTrue(bjorkoDeps.size > 0)
+            assertTrue(bjorkoDeps[0].statusRemarks?.contains("6 min") == true)
+        }
+
+        val svanesundDeps = service.fetchLiveDepartures(RouteDirection.KOLHATTAN_TO_SVANESUND)
+        if (svanesundDeps.isNotEmpty()) {
+            assertTrue(svanesundDeps.size > 0)
+            assertTrue(svanesundDeps[0].statusRemarks?.contains("5 min") == true)
+        }
     }
 }

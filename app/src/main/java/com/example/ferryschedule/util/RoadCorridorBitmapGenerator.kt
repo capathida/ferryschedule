@@ -2,6 +2,7 @@ package com.example.ferryschedule.util
 
 import android.graphics.*
 import com.example.ferryschedule.domain.model.CongestionLevel
+import com.example.ferryschedule.domain.model.FerryRoute
 import com.example.ferryschedule.domain.model.RoadSegment
 import com.example.ferryschedule.domain.model.TrafficStatus
 
@@ -10,7 +11,7 @@ object RoadCorridorBitmapGenerator {
     private const val WIDTH = 980
     private const val HEIGHT = 390
 
-    fun generateCorridorBitmap(trafficStatus: TrafficStatus?): Bitmap {
+    fun generateCorridorBitmap(trafficStatus: TrafficStatus?, route: FerryRoute = FerryRoute.HONOLEDEN): Bitmap {
         val bitmap = Bitmap.createBitmap(WIDTH, HEIGHT, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
 
@@ -52,7 +53,7 @@ object RoadCorridorBitmapGenerator {
             isAntiAlias = true
         }
 
-        // Hönö Island (Left)
+        // Left Island / Shore
         val honoPath = Path().apply {
             moveTo(5f, 40f)
             quadTo(140f, 25f, 215f, 75f)
@@ -63,7 +64,7 @@ object RoadCorridorBitmapGenerator {
         canvas.drawPath(honoPath, landPaint)
         canvas.drawPath(honoPath, landStroke)
 
-        // Mainland (Right)
+        // Right Mainland / Shore
         val mainlandPath = Path().apply {
             moveTo(450f, 75f)
             quadTo(560f, 45f, WIDTH.toFloat(), 55f)
@@ -74,21 +75,43 @@ object RoadCorridorBitmapGenerator {
         canvas.drawPath(mainlandPath, landPaint)
         canvas.drawPath(mainlandPath, landStroke)
 
-        // 4. Texts & Region Titles
+        // 4. Texts & Region Titles based on active route
+        val (leftTitle, leftSub, rightTitle, ferryLabel, leftHarbor, rightHarbor) = when (route) {
+            FerryRoute.HONOLEDEN -> RouteHeaderInfo(
+                "HÖNÖ & ÖCKERÖ", "Väg 574 mot Pinan", "FASTLANDET & GÖTEBORG",
+                "⚓ Hönöleden (~12 min)", "🏝️ Hönö Pinan", "⚓ Lilla Varholmen"
+            )
+            FerryRoute.BJORKOLEDEN -> RouteHeaderInfo(
+                "BJÖRKÖ", "Väg mot Grönevik", "FASTLANDET & GÖTEBORG",
+                "⚓ Björköleden (~6 min)", "🏝️ Björkö Grönevik", "⚓ Lilla Varholmen"
+            )
+            FerryRoute.SVANESUNDSLEDEN -> RouteHeaderInfo(
+                "ORUST (Svanesund)", "Väg 160 anslutning", "STENUNGSUND / FASTLANDET",
+                "⚓ Svanesundsleden (~5 min)", "🏝️ Svanesund", "⚓ Kolhättan"
+            )
+            FerryRoute.GULLMARSLEDEN -> RouteHeaderInfo(
+                "LYSEKIL (Finnsbo)", "Väg 161", "SKAFTÖ / UDDEVALLA",
+                "⚓ Gullmarsleden (~10 min)", "⚓ Finnsbo", "⚓ Skår"
+            )
+        }
+
         val textPaint = Paint().apply {
             color = Color.parseColor("#94A3B8")
-            textSize = 18f
+            textSize = 17f
             typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
             isAntiAlias = true
         }
-        canvas.drawText("HÖNÖ & ÖCKERÖ", 40f, 75f, textPaint)
+        canvas.drawText(leftTitle, 35f, 75f, textPaint)
 
         val smallTextPaint = Paint().apply {
             color = Color.parseColor("#64748B")
             textSize = 11f
             isAntiAlias = true
         }
-        canvas.drawText("Väg 574 mot Pinan", 40f, 95f, smallTextPaint)
+        canvas.drawText(leftSub, 35f, 95f, smallTextPaint)
+
+        // Right side title
+        canvas.drawText(rightTitle, 520f, 75f, textPaint)
 
         // 5. Water Route (Dotted Ferry Line)
         val ferryRoutePaint = Paint().apply {
@@ -111,11 +134,11 @@ object RoadCorridorBitmapGenerator {
             textAlign = Paint.Align.CENTER
             isAntiAlias = true
         }
-        canvas.drawText("⚓ Hönöleden (~12 min)", 330f, 160f, ferryLabelPaint)
+        canvas.drawText(ferryLabel, 330f, 160f, ferryLabelPaint)
 
         // Harbor Badges
-        drawHarborPoint(canvas, 205f, 192f, "🏝️ Hönö Pinan")
-        drawHarborPoint(canvas, 455f, 192f, "⚓ Lilla Varholmen")
+        drawHarborPoint(canvas, 205f, 192f, leftHarbor)
+        drawHarborPoint(canvas, 455f, 192f, rightHarbor)
 
         val segments = trafficStatus?.segments ?: emptyList()
         val getSegLevel: (String) -> Int = { segId ->
@@ -124,17 +147,24 @@ object RoadCorridorBitmapGenerator {
         }
 
         // ========================================================
-        // 6. DUAL ROAD LANES ON HÖNÖ ISLAND (VÄG 574)
+        // 6. DUAL ROAD LANES ON ISLAND / WEST SHORE
         // ========================================================
 
-        // HÖNÖ UPPER LANE: UT PÅ HÖNÖ / ÖCKERÖ (VÄSTERUT ◄◄◄)
+        val (leftUpperBadge, leftLowerDefaultBadge, node1, node2, node3) = when (route) {
+            FerryRoute.HONOLEDEN -> arrayOf("◄ UT PÅ HÖNÖ & ÖCKERÖ", "► MOT PINAN FÄRJA", "Klåva/Öckerö", "Pinankorset", "Uppställning")
+            FerryRoute.BJORKOLEDEN -> arrayOf("◄ UT PÅ BJÖRKÖ", "► MOT GRÖNEVIK FÄRJA", "Björkö By", "Södra vägen", "Uppställning")
+            FerryRoute.SVANESUNDSLEDEN -> arrayOf("◄ UT PÅ ORUST / VÄG 160", "► MOT SVANESUND FÄRJA", "Svanesund C", "Färjevägen", "Uppställning")
+            FerryRoute.GULLMARSLEDEN -> arrayOf("◄ MOT LYSEKIL", "► MOT FINNSBO FÄRJA", "Lysekil C", "Väg 161", "Uppställning")
+        }
+
+        // UPPER LANE: UT PÅ ÖN (VÄSTERUT ◄◄◄)
         val honoUtColor = getSegLevel("hono_ut")
         drawRoadSegment(canvas, 205f, 178f, 20f, 178f, honoUtColor)
         drawFlowArrow(canvas, 150f, 178f, true)
         drawFlowArrow(canvas, 80f, 178f, true)
-        drawPillBadge(canvas, 105f, 150f, "◄ UT PÅ HÖNÖ & ÖCKERÖ", "#38BDF8")
+        drawPillBadge(canvas, 105f, 150f, leftUpperBadge, "#38BDF8")
 
-        // HÖNÖ MEDIAN STRIP
+        // MEDIAN STRIP
         val medianPaint = Paint().apply {
             color = Color.parseColor("#64748B")
             strokeWidth = 2f
@@ -144,45 +174,63 @@ object RoadCorridorBitmapGenerator {
         }
         canvas.drawLine(20f, 204f, 205f, 204f, medianPaint)
 
-        // HÖNÖ LOWER LANE: MOT PINAN FÄRJA (ÖSTERUT ►►►)
-        // Segment 1: Klåva / Öckerö -> Pinan korsväg
+        // LOWER LANE: MOT FÄRJAN (ÖSTERUT ►►►)
+        // Segment 1: Infart -> Korsväg
         val honoApproachesColor = getSegLevel("hono_approaches")
         drawRoadSegment(canvas, 20f, 230f, 110f, 230f, honoApproachesColor)
 
-        // Segment 2: Pinan korsväg -> Uppställningsfiler vid rampen
+        // Segment 2: Korsväg -> Uppställningsfiler vid rampen
         val honoPinanColor = getSegLevel("hono_pinan")
         drawRoadSegment(canvas, 110f, 230f, 205f, 230f, honoPinanColor)
 
         drawFlowArrow(canvas, 65f, 230f, false)
         drawFlowArrow(canvas, 160f, 230f, false)
 
-        val isHonoCongested = honoPinanColor != Color.parseColor("#10B981")
-        val lowerBadgeText = if (isHonoCongested) "► MOT PINAN (KÖBILDNING)" else "► MOT PINAN FÄRJA"
+        val isHonoCongested = honoPinanColor != Color.parseColor("#10B981") && route == FerryRoute.HONOLEDEN
+        val lowerBadgeText = if (isHonoCongested) "► MOT PINAN (KÖBILDNING)" else leftLowerDefaultBadge
         val lowerBadgeColor = if (isHonoCongested) "#F59E0B" else "#10B981"
         drawPillBadge(canvas, 105f, 268f, lowerBadgeText, lowerBadgeColor)
 
-        // Hönö Node Labels
-        drawNodeLabel(canvas, 40f, 318f, "Klåva/Öckerö")
-        drawNodeLabel(canvas, 110f, 318f, "Pinankorset")
-        drawNodeLabel(canvas, 175f, 318f, "Uppställning")
+        // Island Node Labels
+        drawNodeLabel(canvas, 40f, 318f, node1)
+        drawNodeLabel(canvas, 110f, 318f, node2)
+        drawNodeLabel(canvas, 175f, 318f, node3)
 
-        // Hönö Queue or Flow Indicator below node labels
+        // Queue or Flow Indicator below node labels
         if (isHonoCongested) {
             drawWarningPointer(canvas, 110f, 350f, "MORGONKÖ I FILERNA")
         } else {
-            drawGreenPointer(canvas, 110f, 350f, "FRI VÄG MOT PINAN")
+            drawGreenPointer(canvas, 110f, 350f, "FRI VÄG MOT FÄRJAN")
         }
 
         // ========================================================
-        // 7. DUAL ROAD LANES ON MAINLAND (VÄG 155)
+        // 7. DUAL ROAD LANES ON MAINLAND / EAST SHORE
         // ========================================================
 
-        // UPPER LANE: MOT GÖTEBORG & STAN (ÖSTERUT ►►►)
-        drawRoadSegment(canvas, 455f, 180f, 540f, 180f, getSegLevel("36958")) // Slip -> Lulles
-        drawRoadSegment(canvas, 540f, 180f, 630f, 181f, getSegLevel("36957")) // Lulles -> Hjuvik
-        drawRoadSegment(canvas, 630f, 181f, 730f, 176f, getSegLevel("6157"))  // Hjuvik -> Hästevik
-        drawRoadSegment(canvas, 730f, 176f, 830f, 171f, getSegLevel("33621")) // Hästevik -> Amhult
-        drawRoadSegment(canvas, 830f, 171f, 960f, 163f, getSegLevel("6154"))  // Amhult -> Bur
+        val (rightUpperBadge, rightLowerBadge, mNode1, mNode2, mNode3, mNode4, mNode5) = when (route) {
+            FerryRoute.HONOLEDEN, FerryRoute.BJORKOLEDEN -> MainlandRoadInfo(
+                "► ÖSTERUT: MOT GÖTEBORG & STAN",
+                "◄ VÄSTERUT: MOT FÄRJAN (VÄG 155)",
+                "Lulles väg", "Hjuvik", "Hästevik", "Amhult", "Bur / Göteborg"
+            )
+            FerryRoute.SVANESUNDSLEDEN -> MainlandRoadInfo(
+                "► ÖSTERUT: MOT STENUNGSUND & E6",
+                "◄ VÄSTERUT: MOT KOLHÄTTAN FÄRJA",
+                "Färjeläget", "Kolhätta", "Ödsmål", "Stenungstorg", "E6 Motorväg"
+            )
+            FerryRoute.GULLMARSLEDEN -> MainlandRoadInfo(
+                "► SÖDERUT: MOT UDDEVALLA & E6",
+                "◄ NORRUT: MOT SKÅR FÄRJA",
+                "Skår läge", "Bokenäs", "Rotviksbro", "Torp", "Uddevalla"
+            )
+        }
+
+        // UPPER LANE: MOT STAN / ÖSTERUT (►►►)
+        drawRoadSegment(canvas, 455f, 180f, 540f, 180f, getSegLevel("36958"))
+        drawRoadSegment(canvas, 540f, 180f, 630f, 181f, getSegLevel("36957"))
+        drawRoadSegment(canvas, 630f, 181f, 730f, 176f, getSegLevel("6157"))
+        drawRoadSegment(canvas, 730f, 176f, 830f, 171f, getSegLevel("33621"))
+        drawRoadSegment(canvas, 830f, 171f, 960f, 163f, getSegLevel("6154"))
 
         drawFlowArrow(canvas, 500f, 180f, false)
         drawFlowArrow(canvas, 585f, 180f, false)
@@ -193,12 +241,12 @@ object RoadCorridorBitmapGenerator {
         // Mainland Median divider line
         canvas.drawLine(455f, 206f, 960f, 194f, medianPaint)
 
-        // LOWER LANE: MOT FÄRJAN / HÖNÖ (VÄSTERUT ◄◄◄)
-        drawRoadSegment(canvas, 960f, 224f, 830f, 232f, getSegLevel("33611")) // Bur -> Amhult
-        drawRoadSegment(canvas, 830f, 232f, 730f, 237f, getSegLevel("6152"))  // Amhult -> Hällsvik
-        drawRoadSegment(canvas, 730f, 237f, 630f, 242f, getSegLevel("6156"))  // Hällsvik -> Hästevik
-        drawRoadSegment(canvas, 630f, 242f, 540f, 241f, getSegLevel("36956")) // Hjuvik -> Lulles
-        drawRoadSegment(canvas, 540f, 241f, 455f, 241f, getSegLevel("36959")) // Lulles -> Slip
+        // LOWER LANE: MOT FÄRJAN / VÄSTERUT (◄◄◄)
+        drawRoadSegment(canvas, 960f, 224f, 830f, 232f, getSegLevel("33611"))
+        drawRoadSegment(canvas, 830f, 232f, 730f, 237f, getSegLevel("6152"))
+        drawRoadSegment(canvas, 730f, 237f, 630f, 242f, getSegLevel("6156"))
+        drawRoadSegment(canvas, 630f, 242f, 540f, 241f, getSegLevel("36956"))
+        drawRoadSegment(canvas, 540f, 241f, 455f, 241f, getSegLevel("36959"))
 
         drawFlowArrow(canvas, 895f, 228f, true)
         drawFlowArrow(canvas, 780f, 235f, true)
@@ -207,15 +255,15 @@ object RoadCorridorBitmapGenerator {
         drawFlowArrow(canvas, 500f, 241f, true)
 
         // Mainland Lane Badges
-        drawPillBadge(canvas, 680f, 150f, "► ÖSTERUT: MOT GÖTEBORG & STAN", "#10B981")
-        drawPillBadge(canvas, 680f, 268f, "◄ VÄSTERUT: MOT FÄRJAN & HÖNÖ", "#38BDF8")
+        drawPillBadge(canvas, 680f, 150f, rightUpperBadge, "#10B981")
+        drawPillBadge(canvas, 680f, 268f, rightLowerBadge, "#38BDF8")
 
         // Mainland Node Labels
-        drawNodeLabel(canvas, 540f, 318f, "Lulles väg")
-        drawNodeLabel(canvas, 630f, 318f, "Hjuvik")
-        drawNodeLabel(canvas, 730f, 318f, "Hästevik")
-        drawNodeLabel(canvas, 830f, 318f, "Amhult")
-        drawNodeLabel(canvas, 930f, 318f, "Bur / Göteborg")
+        drawNodeLabel(canvas, 540f, 318f, mNode1)
+        drawNodeLabel(canvas, 630f, 318f, mNode2)
+        drawNodeLabel(canvas, 730f, 318f, mNode3)
+        drawNodeLabel(canvas, 830f, 318f, mNode4)
+        drawNodeLabel(canvas, 930f, 318f, mNode5)
 
         // Mainland "HÄR BÖRJAR DET BLI GRÖNT" Pointer
         val slipColor = getSegLevel("36959")
@@ -406,4 +454,23 @@ object RoadCorridorBitmapGenerator {
             CongestionLevel.DARK_RED -> Color.parseColor("#DC2626")
         }
     }
+
+    private data class RouteHeaderInfo(
+        val leftTitle: String,
+        val leftSub: String,
+        val rightTitle: String,
+        val ferryLabel: String,
+        val leftHarbor: String,
+        val rightHarbor: String
+    )
+
+    private data class MainlandRoadInfo(
+        val rightUpperBadge: String,
+        val rightLowerBadge: String,
+        val mNode1: String,
+        val mNode2: String,
+        val mNode3: String,
+        val mNode4: String,
+        val mNode5: String
+    )
 }

@@ -1,6 +1,10 @@
-# Hönöleden Ferry Schedule (Android Auto & Phone Companion)
+# Färjetidtabell (Android Auto & Phone Companion)
 
-An intuitive, driver-optimized Android application providing live, real-time ferry departures, queue forecasts, traffic cameras, and visual road status for the **Hönöleden** route (**Hönö Pinan ⇄ Lilla Varholmen**).
+An intuitive, driver-optimized Android application providing live, real-time ferry departures, queue forecasts, traffic cameras, and visual road status for multiple Swedish ferry routes:
+* 🛳️ **Hönöleden** (**Hönö Pinan ⇄ Lilla Varholmen**) • ~12 min (Route 28)
+* ⛴️ **Björköleden** (**Björkö Grönevik ⇄ Lilla Varholmen**) • ~6 min (Route 23)
+* ⚓ **Svanesundsleden** (**Kolhättan ⇄ Svanesund**) • ~5 min (Route 35)
+* 🚤 **Gullmarsleden** (**Finnsbo ⇄ Skår**) • ~10 min (Route 25)
 
 ---
 
@@ -8,28 +12,29 @@ An intuitive, driver-optimized Android application providing live, real-time fer
 
 ### 🚗 Android Auto (In-Car Screen)
 * **Distraction-Free Glanceability**: Built strictly following Google's Android for Cars Design Guidelines (`androidx.car.app`).
-* **Next 3 Departures**: Large departure time display, live countdown badges (`om 4 min`, `Avgår nu!`), crossing time (~12 min), and cancellation flags (`[INSTÄLLD]`).
+* **Multi-Route Selection (`[Välj led]`)**: Tap `[Välj led]` on the car screen to quickly switch between **Hönöleden**, **Björköleden**, **Svanesundsleden**, or **Gullmarsleden**.
+* **Next 3 Departures**: Large departure time display, live countdown badges (`om 4 min`, `Avgår nu!`), route crossing time, and cancellation flags (`[INSTÄLLD]`).
 * **Smart Queue Forecast**: Shows live road delay and projected boarding:
   > *Fri väg (0 min kö) ➔ Du hinner med nästa färja!*  
-  > *Bilkö: 8 min ➔ Prognos: Du hinner med 2:a färjan kl 14:32*
-* **Visual Road Map (`[Vägkarta]`)**: Full dual-lane schematic map on the car display (`PaneTemplate`) showing real-time traffic speeds and colors for Väg 155.
-* **One-Tap Navigation (`[Navigera]`)**: Instantly launches turn-by-turn guidance in **Google Maps / Waze** directly on your car screen.
-* **Auto-Refresh**: Re-calculates and refreshes every 30 seconds automatically.
+  > *Bilkö: 8 min ➔ Prognos: Du hinner med 2:a färjan*
+* **Visual Road Map (`[Vägkarta]`)**: Full dual-lane schematic map on the car display (`PaneTemplate`) dynamically adapting to the selected ferry route with real-time road speeds and status colors.
+* **One-Tap Navigation (`[Navigera]`)**: Instantly launches turn-by-turn guidance to the active ferry slip in **Google Maps / Waze** directly on your car screen.
+* **Auto-Refresh & Preference Sync**: Re-calculates and refreshes every 30 seconds automatically, and remembers your selected route across phone and car restarts.
 
 ### 📱 Phone Companion App (Jetpack Compose)
+* **Route Selector Bar**: One-tap filter chips at the top of the screen to switch between any ferry route instantly.
 * **Live Departures & Countdown**: Next departure hero card with prominent countdown badge.
-* **Trafiköversikt & Vägkarta**: High-resolution rendered road schematic showing both lanes (Västerut mot Färjan & Österut mot Göteborg), live segment speeds (km/h), and pointer to where traffic becomes free-flow (*"HÄR BÖRJAR DET BLI GRÖNT"*).
-* **Live Trafikverket CCTV Cameras**: Real-time camera feeds from Väg 155 (e.g. *Bur mot Hjuvik & Färjan*) with live timestamps.
+* **Trafiköversikt & Vägkarta**: High-resolution rendered road schematic showing both lanes for the active route, live segment speeds (km/h), and pointer to where traffic becomes free-flow (*"HÄR BÖRJAR DET BLI GRÖNT"*).
+* **Live Trafikverket CCTV Cameras**: Real-time camera feeds from Väg 155 with live timestamps.
 * **Utvecklingsläge (Time Simulator)**: Quick-test chips (*07:15 Morgonrush*, *16:25 Eftermiddag*, *23:55 Midnatt*) to test any time of day instantly.
 
 ---
 
 ## 📡 Live Data Integrations
 
-* **Trafikverket Ferry Route API (Route 28)**:
-  * Schedules: `https://www.trafikverket.se/api/ferryRouteApi/schedules/?id=28&date=YYYY-MM-DD`
-  * Harbor endpoints: `55 = Hönö`, `56 = Lilla Varholmen`.
-  * Real-time deviations & cancellations: `https://www.trafikverket.se/api/ferryRouteApi/deviations/?id=28`
+* **Trafikverket Ferry Route API (Routes 28, 23, 35, 25)**:
+  * Schedules: `https://www.trafikverket.se/api/ferryRouteApi/schedules/?id=<routeId>&date=YYYY-MM-DD`
+  * Dynamic harbor filtering and real-time deviations & cancellations.
 * **Trafikverket TravelTimeRoute API (County 14)**:
   * Live congestion speeds and delay calculations along Väg 155 (*Bur ➔ Amhult ➔ Hästevik ➔ Hjuvik ➔ Lulles väg ➔ Färjeläget*).
 * **Trafikverket Traffic Cameras**:
@@ -47,24 +52,26 @@ com.example.ferryschedule/
 │   ├── FerryCarAppService.kt         # Android Auto service entry point
 │   ├── FerrySession.kt               # Car session lifecycle
 │   ├── DeparturesScreen.kt           # In-car ListTemplate (Departures + Queue advice)
+│   ├── RouteSelectionCarScreen.kt    # In-car ListTemplate for picking ferry route
 │   └── RoadStatusCarScreen.kt        # In-car PaneTemplate (Visual road corridor map)
 ├── phone/
 │   ├── MainActivity.kt               # Companion mobile activity
 │   ├── DeparturesViewModel.kt        # State management, camera loader, ticker
 │   └── ui/
-│       ├── DeparturesPhoneScreen.kt  # Jetpack Compose UI (Hero card, map, cameras)
+│       ├── DeparturesPhoneScreen.kt  # Jetpack Compose UI (Route chips, Hero card, map)
 │       └── theme/Theme.kt            # Nordic maritime Material 3 theme
 ├── domain/
 │   ├── model/
 │   │   ├── FerryDeparture.kt         # Time, countdown text, cancellations, queue
-│   │   ├── RouteDirection.kt         # HONO_TO_VARHOLMEN vs VARHOLMEN_TO_HONO
+│   │   ├── RouteDirection.kt         # FerryRoute & RouteDirection models
 │   │   ├── FerryScheduleState.kt     # Observable UI state
 │   │   └── TrafficModels.kt          # Road segments, CongestionLevel, Cameras
 │   └── repository/
 │       └── FerryRepository.kt        # Repository abstraction
 ├── data/
 │   ├── local/
-│   │   └── HonoTimetableEngine.kt    # 24/7 offline timetable & rollover engine
+│   │   ├── HonoTimetableEngine.kt    # 24/7 offline timetable & rollover engine
+│   │   └── UserPreferences.kt        # SharedPreferences route persistence
 │   ├── remote/
 │   │   ├── TrafikverketService.kt    # Live Trafikverket schedules, queues, cameras
 │   │   ├── NextJsDto.kt              # DTO schemas for Next.js API

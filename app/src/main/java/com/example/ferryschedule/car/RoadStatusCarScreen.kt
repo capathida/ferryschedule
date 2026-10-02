@@ -16,6 +16,7 @@ import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.lifecycleScope
 import com.example.ferryschedule.data.repository.FerryRepositoryImpl
+import com.example.ferryschedule.domain.model.FerryRoute
 import com.example.ferryschedule.domain.model.TrafficStatus
 import com.example.ferryschedule.domain.repository.FerryRepository
 import com.example.ferryschedule.util.RoadCorridorBitmapGenerator
@@ -23,10 +24,11 @@ import kotlinx.coroutines.launch
 
 /**
  * Android Auto screen that displays the graphical road schematic with live colored lanes,
- * current corridor speeds, queue breakdown, and one-tap Google Maps navigation.
+ * corridor speeds, queue breakdown, and one-tap Google Maps navigation for the active ferry route.
  */
 class RoadStatusCarScreen(
     carContext: CarContext,
+    private val route: FerryRoute = FerryRoute.HONOLEDEN,
     private val repository: FerryRepository = FerryRepositoryImpl.instance
 ) : Screen(carContext), DefaultLifecycleObserver {
 
@@ -54,9 +56,10 @@ class RoadStatusCarScreen(
 
     private fun startNavigation() {
         try {
+            val query = route.defaultDirection.navQuery
             val intent = Intent(
                 CarContext.ACTION_NAVIGATE,
-                Uri.parse("geo:57.7088,11.7100?q=Lilla+Varholmen")
+                Uri.parse("geo:57.7088,11.7100?q=${Uri.encode(query)}")
             )
             carContext.startCarApp(intent)
         } catch (e: Exception) {
@@ -84,7 +87,7 @@ class RoadStatusCarScreen(
             )
             .build()
 
-        val bitmap = RoadCorridorBitmapGenerator.generateCorridorBitmap(trafficStatus)
+        val bitmap = RoadCorridorBitmapGenerator.generateCorridorBitmap(trafficStatus, route)
         val carIcon = CarIcon.Builder(IconCompat.createWithBitmap(bitmap)).build()
 
         val paneBuilder = Pane.Builder()
@@ -97,42 +100,106 @@ class RoadStatusCarScreen(
         val honoSpeed = hono?.speedKmh?.toInt() ?: 45
         val hQueueMinutes = hono?.breakdown?.roadQueueMinutes ?: 0
 
-        // Row 1: Fastlandet (Väg 155) -> Färjan
-        val varholmenText = if (vQueueMinutes == 0) {
-            "Hastighet: $westSpeed km/h • Fri väg (0 min kö) ➔ 1:a färjan"
-        } else {
-            "Hastighet: $westSpeed km/h • Kö $vQueueMinutes min ➔ ${varholmen?.breakdown?.estimatedBoardingFerryTime ?: "2:a färjan"}"
-        }
-        paneBuilder.addRow(
-            Row.Builder()
-                .setTitle("Fastlandet: Lilla Varholmen (Väg 155)")
-                .addText(varholmenText)
-                .build()
-        )
+        when (route) {
+            FerryRoute.HONOLEDEN -> {
+                // Row 1: Fastlandet (Väg 155) -> Färjan
+                val varholmenText = if (vQueueMinutes == 0) {
+                    "Hastighet: $westSpeed km/h • Fri väg (0 min kö) ➔ 1:a färjan"
+                } else {
+                    "Hastighet: $westSpeed km/h • Kö $vQueueMinutes min ➔ ${varholmen?.breakdown?.estimatedBoardingFerryTime ?: "2:a färjan"}"
+                }
+                paneBuilder.addRow(
+                    Row.Builder()
+                        .setTitle("Fastlandet: Lilla Varholmen (Väg 155)")
+                        .addText(varholmenText)
+                        .build()
+                )
 
-        // Row 2: Hönö (Väg 574) -> Pinan Färjeläge
-        val honoText = if (hQueueMinutes == 0) {
-            "Hastighet: $honoSpeed km/h • Fri väg (0 min kö) ➔ 1:a färjan"
-        } else {
-            "Hastighet: $honoSpeed km/h • Morgonkö $hQueueMinutes min i filerna ➔ ${hono?.breakdown?.estimatedBoardingFerryTime ?: "2:a färjan"}"
-        }
-        paneBuilder.addRow(
-            Row.Builder()
-                .setTitle("Hönö: Pinan Färjeläge (Väg 574)")
-                .addText(honoText)
-                .build()
-        )
+                // Row 2: Hönö (Väg 574) -> Pinan Färjeläge
+                val honoText = if (hQueueMinutes == 0) {
+                    "Hastighet: $honoSpeed km/h • Fri väg (0 min kö) ➔ 1:a färjan"
+                } else {
+                    "Hastighet: $honoSpeed km/h • Morgonkö $hQueueMinutes min i filerna ➔ ${hono?.breakdown?.estimatedBoardingFerryTime ?: "2:a färjan"}"
+                }
+                paneBuilder.addRow(
+                    Row.Builder()
+                        .setTitle("Hönö: Pinan Färjeläge (Väg 574)")
+                        .addText(honoText)
+                        .build()
+                )
 
-        // Row 3: Returriktningar (Mot Stan & Ut på Hönö)
-        paneBuilder.addRow(
-            Row.Builder()
-                .setTitle("Returvägar (Mot Stan & Ut på Hönö)")
-                .addText("Grönt flöde och fri fart i båda riktningarna från färjorna")
-                .build()
-        )
+                // Row 3: Returriktningar
+                paneBuilder.addRow(
+                    Row.Builder()
+                        .setTitle("Returvägar (Mot Stan & Ut på Hönö)")
+                        .addText("Grönt flöde och fri fart i båda riktningarna från färjorna")
+                        .build()
+                )
+            }
+            FerryRoute.BJORKOLEDEN -> {
+                paneBuilder.addRow(
+                    Row.Builder()
+                        .setTitle("Fastlandet: Lilla Varholmen (Väg 155)")
+                        .addText("Hastighet: $westSpeed km/h • ${if (vQueueMinutes == 0) "Fri fart" else "Kö ca $vQueueMinutes min"}")
+                        .build()
+                )
+                paneBuilder.addRow(
+                    Row.Builder()
+                        .setTitle("Björkö: Grönevik Färjeläge")
+                        .addText("Fri framkomlighet vid terminalen • Överfartstid ~6 min")
+                        .build()
+                )
+                paneBuilder.addRow(
+                    Row.Builder()
+                        .setTitle("Returvägar")
+                        .addText("Normalt flöde mot Stan och ut på Björkö")
+                        .build()
+                )
+            }
+            FerryRoute.SVANESUNDSLEDEN -> {
+                paneBuilder.addRow(
+                    Row.Builder()
+                        .setTitle("Fastlandet: Kolhättan (Väg 770)")
+                        .addText("Fri väg mot färjeläget mot Orust • Överfart ~5 min")
+                        .build()
+                )
+                paneBuilder.addRow(
+                    Row.Builder()
+                        .setTitle("Orust: Svanesund (Väg 160)")
+                        .addText("Fri framkomlighet mot fastlandet / Stenungsund")
+                        .build()
+                )
+                paneBuilder.addRow(
+                    Row.Builder()
+                        .setTitle("Anslutningsvägar")
+                        .addText("Trafiken flyter normalt mot Stenungsund (E6) och Henån")
+                        .build()
+                )
+            }
+            FerryRoute.GULLMARSLEDEN -> {
+                paneBuilder.addRow(
+                    Row.Builder()
+                        .setTitle("Lysekil: Finnsbo (Väg 161)")
+                        .addText("Fri väg mot Skår • Överfartstid ~10 min")
+                        .build()
+                )
+                paneBuilder.addRow(
+                    Row.Builder()
+                        .setTitle("Skaftö / Bokenäs: Skår")
+                        .addText("Fri väg mot Finnsbo och Lysekil")
+                        .build()
+                )
+                paneBuilder.addRow(
+                    Row.Builder()
+                        .setTitle("Väg 161")
+                        .addText("Normal framkomlighet mot Torp/E6 och Lysekil")
+                        .build()
+                )
+            }
+        }
 
         return PaneTemplate.Builder(paneBuilder.build())
-            .setTitle("Vägkarta Hönöleden & Väg 155/574")
+            .setTitle("Vägkarta: ${route.title}")
             .setHeaderAction(Action.BACK)
             .setActionStrip(actionStrip)
             .build()

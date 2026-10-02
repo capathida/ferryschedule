@@ -31,7 +31,12 @@ class FerryRepositoryImpl(
                 if (liveList.isNotEmpty()) {
                     // Attach current queue breakdown to departures
                     val queue = cachedTrafficStatus?.let {
-                        if (direction == RouteDirection.HONO_TO_VARHOLMEN) it.hono.breakdown else it.varholmen.breakdown
+                        when (direction) {
+                            RouteDirection.HONO_TO_VARHOLMEN -> it.hono.breakdown
+                            RouteDirection.VARHOLMEN_TO_HONO -> it.varholmen.breakdown
+                            RouteDirection.VARHOLMEN_TO_BJORKO -> it.varholmen.breakdown
+                            else -> null
+                        }
                     }
                     return@runCatching liveList.map { dep ->
                         dep.copy(queueBreakdown = queue)

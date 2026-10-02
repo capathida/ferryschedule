@@ -23,5 +23,7 @@ data class FerryScheduleState(
         get() = when (direction) {
             RouteDirection.HONO_TO_VARHOLMEN -> trafficStatus?.hono?.breakdown
             RouteDirection.VARHOLMEN_TO_HONO -> trafficStatus?.varholmen?.breakdown
+            RouteDirection.VARHOLMEN_TO_BJORKO -> trafficStatus?.varholmen?.breakdown
+            else -> null
         }
 }

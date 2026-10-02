@@ -34,6 +34,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.example.ferryschedule.domain.model.FerryDeparture
+import com.example.ferryschedule.domain.model.FerryRoute
 import com.example.ferryschedule.domain.model.RouteDirection
 import com.example.ferryschedule.domain.model.TrafficCamera
 import com.example.ferryschedule.domain.model.TrafficStatus
@@ -62,7 +63,7 @@ fun DeparturesPhoneScreen(
                             modifier = Modifier.padding(end = 8.dp)
                         )
                         Text(
-                            text = "Hönöleden Live",
+                            text = "${uiState.direction.route.title} Live",
                             fontWeight = FontWeight.Bold
                         )
                     }
@@ -89,15 +90,44 @@ fun DeparturesPhoneScreen(
                 .padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
+            // Route Selector Tabs / Chips
+            item {
+                Spacer(modifier = Modifier.height(2.dp))
+                LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    items(FerryRoute.entries) { route ->
+                        val isSelected = uiState.direction.route == route
+                        FilterChip(
+                            selected = isSelected,
+                            onClick = { viewModel.selectRoute(route) },
+                            label = {
+                                Text(
+                                    text = "${route.title} (~${route.crossingMinutes}m)",
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                                )
+                            },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Default.DirectionsBoat,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                        )
+                    }
+                }
+            }
+
             // Direction Switcher Card
             item {
-                Spacer(modifier = Modifier.height(4.dp))
                 DirectionCard(
                     origin = uiState.direction.originName,
                     destination = uiState.direction.destinationName,
                     onSwap = { viewModel.toggleDirection() },
                     onNavigate = {
-                        val query = if (uiState.direction == RouteDirection.VARHOLMEN_TO_HONO) "Lilla Varholmen Färjeläge" else "Hönö Färjeläge Pinan"
+                        val query = uiState.direction.navQuery
                         val intent = Intent(Intent.ACTION_VIEW, Uri.parse("geo:57.7088,11.7100?q=$query"))
                         context.startActivity(intent)
                     }
@@ -171,13 +201,13 @@ fun DeparturesPhoneScreen(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
-                                text = "Väg 155 & Väg 574 (Båda sidor)",
+                                text = "${uiState.direction.route.title} (${uiState.direction.route.roadDescription})",
                                 color = Color.White,
                                 style = MaterialTheme.typography.titleSmall,
                                 fontWeight = FontWeight.Bold
                             )
                             Text(
-                                text = "Hönö & Fastlandet",
+                                text = uiState.direction.route.subtitle,
                                 color = Color(0xFF38BDF8),
                                 fontSize = 11.sp
                             )
@@ -462,7 +492,7 @@ fun HeroDepartureCard(
             }
 
             Text(
-                text = "Överfartstid cirka 12 minuter • Trafikverket Färjerederiet",
+                text = "Överfartstid cirka ${direction.crossingMinutes} minuter • Trafikverket Färjerederiet",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )

@@ -1,9 +1,12 @@
 package com.example.ferryschedule.phone
 
+import android.app.Application
 import android.graphics.Bitmap
-import androidx.lifecycle.ViewModel
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.ferryschedule.data.local.UserPreferences
 import com.example.ferryschedule.data.repository.FerryRepositoryImpl
+import com.example.ferryschedule.domain.model.FerryRoute
 import com.example.ferryschedule.domain.model.FerryScheduleState
 import com.example.ferryschedule.domain.model.RouteDirection
 import com.example.ferryschedule.domain.repository.FerryRepository
@@ -19,10 +22,18 @@ import kotlinx.coroutines.launch
 import java.time.LocalTime
 
 class DeparturesViewModel(
+    application: Application,
     private val repository: FerryRepository = FerryRepositoryImpl.instance
-) : ViewModel() {
+) : AndroidViewModel(application) {
 
-    private val _uiState = MutableStateFlow(FerryScheduleState(isLoading = true))
+    private val userPrefs = UserPreferences.getInstance(application)
+
+    private val _uiState = MutableStateFlow(
+        FerryScheduleState(
+            direction = userPrefs.savedDirection,
+            isLoading = true
+        )
+    )
     val uiState: StateFlow<FerryScheduleState> = _uiState.asStateFlow()
 
     private val _corridorBitmap = MutableStateFlow<Bitmap?>(null)
@@ -38,8 +49,22 @@ class DeparturesViewModel(
         startTicker()
     }
 
+    fun selectRoute(route: FerryRoute) {
+        val newDirection = route.defaultDirection
+        userPrefs.savedDirection = newDirection
+        _uiState.update { it.copy(direction = newDirection, isLoading = true) }
+        loadData()
+    }
+
+    fun selectDirection(direction: RouteDirection) {
+        userPrefs.savedDirection = direction
+        _uiState.update { it.copy(direction = direction, isLoading = true) }
+        loadData()
+    }
+
     fun toggleDirection() {
         val nextDirection = _uiState.value.direction.opposite()
+        userPrefs.savedDirection = nextDirection
         _uiState.update { it.copy(direction = nextDirection, isLoading = true) }
         loadData()
     }
@@ -57,12 +82,13 @@ class DeparturesViewModel(
     private fun loadData() {
         viewModelScope.launch {
             val referenceTime = simulatedTime ?: LocalTime.now()
+            val currentDirection = _uiState.value.direction
 
             val trafficResult = repository.getTrafficStatus(referenceTime)
             val traffic = trafficResult.getOrNull()
 
             val depResult = repository.getNextDepartures(
-                direction = _uiState.value.direction,
+                direction = currentDirection,
                 fromTime = referenceTime,
                 count = 3
             )
@@ -82,8 +108,11 @@ class DeparturesViewModel(
                 )
             }
 
-            // Generate updated road schematic bitmap
-            _corridorBitmap.value = RoadCorridorBitmapGenerator.generateCorridorBitmap(traffic)
+            // Generate updated road schematic bitmap for the active route
+            _corridorBitmap.value = RoadCorridorBitmapGenerator.generateCorridorBitmap(
+                trafficStatus = traffic,
+                route = currentDirection.route
+            )
         }
     }
 

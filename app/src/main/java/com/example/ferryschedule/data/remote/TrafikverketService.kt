@@ -31,25 +31,25 @@ class TrafikverketService(
 ) {
 
     private val authKey = "707695ca4c704c93a80ebf62cf9af7b5"
-    private val routeId = 28 // Hönöleden
 
     suspend fun fetchLiveDepartures(direction: RouteDirection): List<FerryDeparture> = withContext(Dispatchers.IO) {
         val today = LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE)
         val tomorrow = LocalDate.now().plusDays(1).format(DateTimeFormatter.ISO_LOCAL_DATE)
 
         val departuresList = mutableListOf<FerryDeparture>()
-        val fromIdTarget = if (direction == RouteDirection.HONO_TO_VARHOLMEN) 55 else 56
+        val fromIdTarget = direction.fromHarborId
+        val targetRouteId = direction.routeId
 
         try {
-            val urlToday = "https://www.trafikverket.se/api/ferryRouteApi/schedules/?id=$routeId&date=$today"
-            val departuresToday = parseScheduleUrl(urlToday, fromIdTarget)
+            val urlToday = "https://www.trafikverket.se/api/ferryRouteApi/schedules/?id=$targetRouteId&date=$today"
+            val departuresToday = parseScheduleUrl(urlToday, fromIdTarget, direction.crossingMinutes)
             departuresList.addAll(departuresToday)
 
             // If late in the day, add tomorrow's first departures
             val nowTime = LocalTime.now()
             if (nowTime.hour >= 22 || departuresList.size < 3) {
-                val urlTomorrow = "https://www.trafikverket.se/api/ferryRouteApi/schedules/?id=$routeId&date=$tomorrow"
-                val departuresTomorrow = parseScheduleUrl(urlTomorrow, fromIdTarget)
+                val urlTomorrow = "https://www.trafikverket.se/api/ferryRouteApi/schedules/?id=$targetRouteId&date=$tomorrow"
+                val departuresTomorrow = parseScheduleUrl(urlTomorrow, fromIdTarget, direction.crossingMinutes)
                 departuresList.addAll(departuresTomorrow)
             }
         } catch (e: Exception) {
@@ -67,7 +67,7 @@ class TrafikverketService(
         if (upcoming.isNotEmpty()) upcoming.take(5) else departuresList.take(3)
     }
 
-    private fun parseScheduleUrl(url: String, fromIdTarget: Int): List<FerryDeparture> {
+    private fun parseScheduleUrl(url: String, fromIdTarget: Int, crossingMinutes: Int = 12): List<FerryDeparture> {
         val request = Request.Builder()
             .url(url)
             .header("User-Agent", "Mozilla/5.0")
@@ -131,7 +131,7 @@ class TrafikverketService(
                     id = "${fromId}_$timeStr",
                     departureTime = localTime,
                     minutesUntilDeparture = minutesUntil,
-                    statusRemarks = if (isCancelled) "Inställd" else "Överfart ~12 min • Trafikverket",
+                    statusRemarks = if (isCancelled) "Inställd" else "Överfart ~$crossingMinutes min • Trafikverket",
                     isCancelled = isCancelled,
                     isDeviated = isDeviated,
                     deviationMessage = deviationMsg
