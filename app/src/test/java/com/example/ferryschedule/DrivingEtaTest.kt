@@ -98,4 +98,11 @@ class DrivingEtaTest {
         assertEquals(57.7005, RouteDirection.HONO_TO_VARHOLMEN.departureLatitude, 0.0001)
         assertEquals(11.6565, RouteDirection.HONO_TO_VARHOLMEN.departureLongitude, 0.0001)
     }
+
+    @Test
+    fun testDeparturesViewModelHasApplicationConstructor() {
+        val constructor = com.example.ferryschedule.phone.DeparturesViewModel::class.java
+            .getConstructor(android.app.Application::class.java)
+        org.junit.Assert.assertNotNull(constructor)
+    }
 }

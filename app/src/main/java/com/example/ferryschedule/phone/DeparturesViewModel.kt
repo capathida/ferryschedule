@@ -22,7 +22,7 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import java.time.LocalTime
 
-class DeparturesViewModel(
+class DeparturesViewModel @JvmOverloads constructor(
     application: Application,
     private val repository: FerryRepository = FerryRepositoryImpl.instance,
     private val drivingEtaRepository: DrivingEtaRepository = DrivingEtaRepository.getInstance(application)
