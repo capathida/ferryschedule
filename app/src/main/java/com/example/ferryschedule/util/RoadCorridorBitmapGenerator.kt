@@ -31,10 +31,10 @@ object RoadCorridorBitmapGenerator {
             isAntiAlias = true
         }
         val waterPath = Path().apply {
-            moveTo(140f, 0f)
-            quadTo(250f, 195f, 290f, HEIGHT.toFloat())
-            lineTo(510f, HEIGHT.toFloat())
-            quadTo(460f, 110f, 440f, 0f)
+            moveTo(215f, 0f)
+            quadTo(280f, 195f, 310f, HEIGHT.toFloat())
+            lineTo(490f, HEIGHT.toFloat())
+            quadTo(450f, 110f, 435f, 0f)
             close()
         }
         canvas.drawPath(waterPath, waterPaint)
@@ -54,10 +54,10 @@ object RoadCorridorBitmapGenerator {
 
         // Hönö Island (Left)
         val honoPath = Path().apply {
-            moveTo(10f, 40f)
-            quadTo(130f, 30f, 200f, 80f)
-            quadTo(240f, 130f, 220f, 250f)
-            quadTo(170f, 350f, 20f, 340f)
+            moveTo(5f, 40f)
+            quadTo(140f, 25f, 215f, 75f)
+            quadTo(245f, 130f, 230f, 255f)
+            quadTo(175f, 365f, 5f, 355f)
             close()
         }
         canvas.drawPath(honoPath, landPaint)
@@ -65,30 +65,30 @@ object RoadCorridorBitmapGenerator {
 
         // Mainland (Right)
         val mainlandPath = Path().apply {
-            moveTo(460f, 80f)
-            quadTo(560f, 50f, WIDTH.toFloat(), 60f)
-            lineTo(WIDTH.toFloat(), 360f)
-            quadTo(560f, 360f, 460f, 280f)
+            moveTo(450f, 75f)
+            quadTo(560f, 45f, WIDTH.toFloat(), 55f)
+            lineTo(WIDTH.toFloat(), 365f)
+            quadTo(560f, 365f, 450f, 280f)
             close()
         }
         canvas.drawPath(mainlandPath, landPaint)
         canvas.drawPath(mainlandPath, landStroke)
 
-        // 4. Texts & Harbor Titles
+        // 4. Texts & Region Titles
         val textPaint = Paint().apply {
             color = Color.parseColor("#94A3B8")
             textSize = 18f
             typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
             isAntiAlias = true
         }
-        canvas.drawText("HÖNÖ", 75f, 85f, textPaint)
+        canvas.drawText("HÖNÖ & ÖCKERÖ", 40f, 75f, textPaint)
 
         val smallTextPaint = Paint().apply {
             color = Color.parseColor("#64748B")
             textSize = 11f
             isAntiAlias = true
         }
-        canvas.drawText("Öckerö kommun", 75f, 105f, smallTextPaint)
+        canvas.drawText("Väg 574 mot Pinan", 40f, 95f, smallTextPaint)
 
         // 5. Water Route (Dotted Ferry Line)
         val ferryRoutePaint = Paint().apply {
@@ -99,79 +99,133 @@ object RoadCorridorBitmapGenerator {
             isAntiAlias = true
         }
         val ferryPath = Path().apply {
-            moveTo(200f, 192f)
-            quadTo(330f, 212f, 460f, 192f)
+            moveTo(205f, 192f)
+            quadTo(330f, 212f, 455f, 192f)
         }
         canvas.drawPath(ferryPath, ferryRoutePaint)
 
         val ferryLabelPaint = Paint().apply {
             color = Color.parseColor("#38BDF8")
-            textSize = 12f
+            textSize = 11.5f
             typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
             textAlign = Paint.Align.CENTER
             isAntiAlias = true
         }
-        canvas.drawText("⚓ Hönöleden (2,5 km • ~12 min)", 330f, 160f, ferryLabelPaint)
+        canvas.drawText("⚓ Hönöleden (~12 min)", 330f, 160f, ferryLabelPaint)
 
         // Harbor Badges
-        drawHarborPoint(canvas, 200f, 192f, "🏝️ Hönö Pinan")
-        drawHarborPoint(canvas, 460f, 192f, "⚓ Lilla Varholmen")
+        drawHarborPoint(canvas, 205f, 192f, "🏝️ Hönö Pinan")
+        drawHarborPoint(canvas, 455f, 192f, "⚓ Lilla Varholmen")
 
-        // 6. DUAL ROAD LANES ON MAINLAND (Väg 155)
         val segments = trafficStatus?.segments ?: emptyList()
         val getSegLevel: (String) -> Int = { segId ->
             val seg = segments.find { it.id == segId }
             getLevelColor(seg?.level ?: CongestionLevel.GREEN)
         }
 
-        // ==========================================
-        // UPPER LANE: MOT GÖTEBORG (ÖSTERUT ►►►)
-        // ==========================================
-        drawRoadSegment(canvas, 460f, 182f, 540f, 182f, getSegLevel("36958")) // Slip -> Lulles
-        drawRoadSegment(canvas, 540f, 182f, 630f, 183f, getSegLevel("36957")) // Lulles -> Hjuvik
-        drawRoadSegment(canvas, 630f, 183f, 730f, 178f, getSegLevel("6157"))  // Hjuvik -> Hästevik
-        drawRoadSegment(canvas, 730f, 178f, 830f, 173f, getSegLevel("33621")) // Hästevik -> Amhult
-        drawRoadSegment(canvas, 830f, 173f, 960f, 165f, getSegLevel("6154"))  // Amhult -> Bur
+        // ========================================================
+        // 6. DUAL ROAD LANES ON HÖNÖ ISLAND (VÄG 574)
+        // ========================================================
 
-        // Median divider line
+        // HÖNÖ UPPER LANE: UT PÅ HÖNÖ / ÖCKERÖ (VÄSTERUT ◄◄◄)
+        val honoUtColor = getSegLevel("hono_ut")
+        drawRoadSegment(canvas, 205f, 178f, 20f, 178f, honoUtColor)
+        drawFlowArrow(canvas, 150f, 178f, true)
+        drawFlowArrow(canvas, 80f, 178f, true)
+        drawPillBadge(canvas, 105f, 150f, "◄ UT PÅ HÖNÖ & ÖCKERÖ", "#38BDF8")
+
+        // HÖNÖ MEDIAN STRIP
         val medianPaint = Paint().apply {
             color = Color.parseColor("#64748B")
             strokeWidth = 2f
             style = Paint.Style.STROKE
-            pathEffect = DashPathEffect(floatArrayOf(8f, 8f), 0f)
+            pathEffect = DashPathEffect(floatArrayOf(6f, 6f), 0f)
             isAntiAlias = true
         }
-        canvas.drawLine(460f, 210f, 960f, 198f, medianPaint)
+        canvas.drawLine(20f, 204f, 205f, 204f, medianPaint)
 
-        // ==========================================
+        // HÖNÖ LOWER LANE: MOT PINAN FÄRJA (ÖSTERUT ►►►)
+        // Segment 1: Klåva / Öckerö -> Pinan korsväg
+        val honoApproachesColor = getSegLevel("hono_approaches")
+        drawRoadSegment(canvas, 20f, 230f, 110f, 230f, honoApproachesColor)
+
+        // Segment 2: Pinan korsväg -> Uppställningsfiler vid rampen
+        val honoPinanColor = getSegLevel("hono_pinan")
+        drawRoadSegment(canvas, 110f, 230f, 205f, 230f, honoPinanColor)
+
+        drawFlowArrow(canvas, 65f, 230f, false)
+        drawFlowArrow(canvas, 160f, 230f, false)
+
+        val isHonoCongested = honoPinanColor != Color.parseColor("#10B981")
+        val lowerBadgeText = if (isHonoCongested) "► MOT PINAN (KÖBILDNING)" else "► MOT PINAN FÄRJA"
+        val lowerBadgeColor = if (isHonoCongested) "#F59E0B" else "#10B981"
+        drawPillBadge(canvas, 105f, 268f, lowerBadgeText, lowerBadgeColor)
+
+        // Hönö Node Labels
+        drawNodeLabel(canvas, 40f, 318f, "Klåva/Öckerö")
+        drawNodeLabel(canvas, 110f, 318f, "Pinankorset")
+        drawNodeLabel(canvas, 175f, 318f, "Uppställning")
+
+        // Hönö Queue or Flow Indicator below node labels
+        if (isHonoCongested) {
+            drawWarningPointer(canvas, 110f, 350f, "MORGONKÖ I FILERNA")
+        } else {
+            drawGreenPointer(canvas, 110f, 350f, "FRI VÄG MOT PINAN")
+        }
+
+        // ========================================================
+        // 7. DUAL ROAD LANES ON MAINLAND (VÄG 155)
+        // ========================================================
+
+        // UPPER LANE: MOT GÖTEBORG & STAN (ÖSTERUT ►►►)
+        drawRoadSegment(canvas, 455f, 180f, 540f, 180f, getSegLevel("36958")) // Slip -> Lulles
+        drawRoadSegment(canvas, 540f, 180f, 630f, 181f, getSegLevel("36957")) // Lulles -> Hjuvik
+        drawRoadSegment(canvas, 630f, 181f, 730f, 176f, getSegLevel("6157"))  // Hjuvik -> Hästevik
+        drawRoadSegment(canvas, 730f, 176f, 830f, 171f, getSegLevel("33621")) // Hästevik -> Amhult
+        drawRoadSegment(canvas, 830f, 171f, 960f, 163f, getSegLevel("6154"))  // Amhult -> Bur
+
+        drawFlowArrow(canvas, 500f, 180f, false)
+        drawFlowArrow(canvas, 585f, 180f, false)
+        drawFlowArrow(canvas, 680f, 178f, false)
+        drawFlowArrow(canvas, 780f, 173f, false)
+        drawFlowArrow(canvas, 895f, 167f, false)
+
+        // Mainland Median divider line
+        canvas.drawLine(455f, 206f, 960f, 194f, medianPaint)
+
         // LOWER LANE: MOT FÄRJAN / HÖNÖ (VÄSTERUT ◄◄◄)
-        // ==========================================
-        drawRoadSegment(canvas, 960f, 228f, 830f, 236f, getSegLevel("33611")) // Bur -> Amhult
-        drawRoadSegment(canvas, 830f, 236f, 730f, 241f, getSegLevel("6152"))  // Amhult -> Hällsvik
-        drawRoadSegment(canvas, 730f, 241f, 630f, 245f, getSegLevel("6156"))  // Hällsvik -> Hästevik
-        drawRoadSegment(canvas, 630f, 245f, 540f, 244f, getSegLevel("36956")) // Hjuvik -> Lulles
-        drawRoadSegment(canvas, 540f, 244f, 460f, 244f, getSegLevel("36959")) // Lulles -> Slip
+        drawRoadSegment(canvas, 960f, 224f, 830f, 232f, getSegLevel("33611")) // Bur -> Amhult
+        drawRoadSegment(canvas, 830f, 232f, 730f, 237f, getSegLevel("6152"))  // Amhult -> Hällsvik
+        drawRoadSegment(canvas, 730f, 237f, 630f, 242f, getSegLevel("6156"))  // Hällsvik -> Hästevik
+        drawRoadSegment(canvas, 630f, 242f, 540f, 241f, getSegLevel("36956")) // Hjuvik -> Lulles
+        drawRoadSegment(canvas, 540f, 241f, 455f, 241f, getSegLevel("36959")) // Lulles -> Slip
 
-        // 7. Lane Label Badges
-        drawPillBadge(canvas, 680f, 152f, "► ÖSTERUT: MOT GÖTEBORG & STAN", "#10B981")
+        drawFlowArrow(canvas, 895f, 228f, true)
+        drawFlowArrow(canvas, 780f, 235f, true)
+        drawFlowArrow(canvas, 680f, 240f, true)
+        drawFlowArrow(canvas, 585f, 241f, true)
+        drawFlowArrow(canvas, 500f, 241f, true)
+
+        // Mainland Lane Badges
+        drawPillBadge(canvas, 680f, 150f, "► ÖSTERUT: MOT GÖTEBORG & STAN", "#10B981")
         drawPillBadge(canvas, 680f, 268f, "◄ VÄSTERUT: MOT FÄRJAN & HÖNÖ", "#38BDF8")
 
-        // 8. Road Node Labels
+        // Mainland Node Labels
         drawNodeLabel(canvas, 540f, 318f, "Lulles väg")
         drawNodeLabel(canvas, 630f, 318f, "Hjuvik")
         drawNodeLabel(canvas, 730f, 318f, "Hästevik")
         drawNodeLabel(canvas, 830f, 318f, "Amhult")
         drawNodeLabel(canvas, 930f, 318f, "Bur / Göteborg")
 
-        // 9. "HÄR BÖRJAR DET BLI GRÖNT" Pointer
+        // Mainland "HÄR BÖRJAR DET BLI GRÖNT" Pointer
         val slipColor = getSegLevel("36959")
         val hjuvikColor = getSegLevel("36956")
         val greenMarkerX = when {
-            slipColor == Color.parseColor("#10B981") -> 490f
+            slipColor == Color.parseColor("#10B981") -> 485f
             hjuvikColor == Color.parseColor("#10B981") -> 580f
             else -> 730f
         }
-        drawGreenPointer(canvas, greenMarkerX, 292f)
+        drawGreenPointer(canvas, greenMarkerX, 350f, "HÄR BÖRJAR DET BLI GRÖNT")
 
         return bitmap
     }
@@ -179,7 +233,7 @@ object RoadCorridorBitmapGenerator {
     private fun drawRoadSegment(canvas: Canvas, x1: Float, y1: Float, x2: Float, y2: Float, colorInt: Int) {
         val roadBorder = Paint().apply {
             color = Color.parseColor("#0F172A")
-            strokeWidth = 14f
+            strokeWidth = 13f
             strokeCap = Paint.Cap.ROUND
             isAntiAlias = true
         }
@@ -187,11 +241,23 @@ object RoadCorridorBitmapGenerator {
 
         val roadFill = Paint().apply {
             color = colorInt
-            strokeWidth = 8f
+            strokeWidth = 7.5f
             strokeCap = Paint.Cap.ROUND
             isAntiAlias = true
         }
         canvas.drawLine(x1, y1, x2, y2, roadFill)
+    }
+
+    private fun drawFlowArrow(canvas: Canvas, cx: Float, cy: Float, pointsWest: Boolean) {
+        val arrowPaint = Paint().apply {
+            color = Color.parseColor("#0F172A")
+            textSize = 8.5f
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+            textAlign = Paint.Align.CENTER
+            isAntiAlias = true
+        }
+        val symbol = if (pointsWest) "◄" else "►"
+        canvas.drawText(symbol, cx, cy + 3f, arrowPaint)
     }
 
     private fun drawHarborPoint(canvas: Canvas, cx: Float, cy: Float, title: String) {
@@ -200,7 +266,7 @@ object RoadCorridorBitmapGenerator {
             style = Paint.Style.FILL
             isAntiAlias = true
         }
-        canvas.drawCircle(cx, cy, 8f, pointPaint)
+        canvas.drawCircle(cx, cy, 7.5f, pointPaint)
 
         val labelBg = Paint().apply {
             color = Color.parseColor("#0F172A")
@@ -211,18 +277,18 @@ object RoadCorridorBitmapGenerator {
             style = Paint.Style.STROKE
             strokeWidth = 1.5f
         }
-        val rect = RectF(cx - 65f, cy - 45f, cx + 65f, cy - 20f)
+        val rect = RectF(cx - 62f, cy - 43f, cx + 62f, cy - 20f)
         canvas.drawRoundRect(rect, 6f, 6f, labelBg)
         canvas.drawRoundRect(rect, 6f, 6f, labelBorder)
 
         val labelText = Paint().apply {
             color = Color.parseColor("#38BDF8")
-            textSize = 11f
+            textSize = 10.5f
             typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
             textAlign = Paint.Align.CENTER
             isAntiAlias = true
         }
-        canvas.drawText(title, cx, cy - 28f, labelText)
+        canvas.drawText(title, cx, cy - 27f, labelText)
     }
 
     private fun drawPillBadge(canvas: Canvas, cx: Float, cy: Float, text: String, colorHex: String) {
@@ -235,18 +301,18 @@ object RoadCorridorBitmapGenerator {
             style = Paint.Style.STROKE
             strokeWidth = 1f
         }
-        val rect = RectF(cx - 120f, cy - 10f, cx + 120f, cy + 10f)
-        canvas.drawRoundRect(rect, 6f, 6f, paint)
-        canvas.drawRoundRect(rect, 6f, 6f, border)
+        val rect = RectF(cx - 105f, cy - 10f, cx + 105f, cy + 10f)
+        canvas.drawRoundRect(rect, 5f, 5f, paint)
+        canvas.drawRoundRect(rect, 5f, 5f, border)
 
         val textP = Paint().apply {
             color = Color.parseColor(colorHex)
-            textSize = 9.5f
+            textSize = 8.5f
             typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
             textAlign = Paint.Align.CENTER
             isAntiAlias = true
         }
-        canvas.drawText(text, cx, cy + 4f, textP)
+        canvas.drawText(text, cx, cy + 3.5f, textP)
     }
 
     private fun drawNodeLabel(canvas: Canvas, cx: Float, cy: Float, name: String) {
@@ -259,15 +325,15 @@ object RoadCorridorBitmapGenerator {
 
         val textP = Paint().apply {
             color = Color.parseColor("#94A3B8")
-            textSize = 10f
+            textSize = 9.5f
             typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
             textAlign = Paint.Align.CENTER
             isAntiAlias = true
         }
-        canvas.drawText(name, cx, cy + 16f, textP)
+        canvas.drawText(name, cx, cy + 15f, textP)
     }
 
-    private fun drawGreenPointer(canvas: Canvas, cx: Float, cy: Float) {
+    private fun drawGreenPointer(canvas: Canvas, cx: Float, cy: Float, text: String = "HÄR BÖRJAR DET BLI GRÖNT") {
         val bgPaint = Paint().apply {
             color = Color.parseColor("#064E3B")
             style = Paint.Style.FILL
@@ -288,7 +354,7 @@ object RoadCorridorBitmapGenerator {
             lineTo(cx, cy - 18f)
             close()
         }
-        canvas.drawPath(arrow, Paint().apply { color = Color.parseColor("#10B981"); style = Paint.Style.FILL })
+        canvas.drawPath(arrow, Paint().apply { color = Color.parseColor("#10B981"); style = Paint.Style.FILL; isAntiAlias = true })
 
         val textP = Paint().apply {
             color = Color.parseColor("#ECFDF5")
@@ -297,7 +363,39 @@ object RoadCorridorBitmapGenerator {
             textAlign = Paint.Align.CENTER
             isAntiAlias = true
         }
-        canvas.drawText("HÄR BÖRJAR DET BLI GRÖNT", cx, cy + 5f, textP)
+        canvas.drawText(text, cx, cy + 5f, textP)
+    }
+
+    private fun drawWarningPointer(canvas: Canvas, cx: Float, cy: Float, text: String) {
+        val bgPaint = Paint().apply {
+            color = Color.parseColor("#450A0A")
+            style = Paint.Style.FILL
+        }
+        val borderPaint = Paint().apply {
+            color = Color.parseColor("#EF4444")
+            style = Paint.Style.STROKE
+            strokeWidth = 1.5f
+        }
+        val rect = RectF(cx - 85f, cy - 10f, cx + 85f, cy + 12f)
+        canvas.drawRoundRect(rect, 6f, 6f, bgPaint)
+        canvas.drawRoundRect(rect, 6f, 6f, borderPaint)
+
+        val arrow = Path().apply {
+            moveTo(cx - 6f, cy - 10f)
+            lineTo(cx + 6f, cy - 10f)
+            lineTo(cx, cy - 18f)
+            close()
+        }
+        canvas.drawPath(arrow, Paint().apply { color = Color.parseColor("#EF4444"); style = Paint.Style.FILL; isAntiAlias = true })
+
+        val textP = Paint().apply {
+            color = Color.parseColor("#FEE2E2")
+            textSize = 8f
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+            textAlign = Paint.Align.CENTER
+            isAntiAlias = true
+        }
+        canvas.drawText(text, cx, cy + 5f, textP)
     }
 
     private fun getLevelColor(level: CongestionLevel): Int {

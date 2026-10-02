@@ -21,7 +21,7 @@ interface FerryRepository {
     /**
      * Retrieves live road corridor traffic status, speeds, and queues.
      */
-    suspend fun getTrafficStatus(): Result<TrafficStatus>
+    suspend fun getTrafficStatus(fromTime: LocalTime = LocalTime.now()): Result<TrafficStatus>
 
     /**
      * Retrieves live Trafikverket camera photos for Route 155 approach.

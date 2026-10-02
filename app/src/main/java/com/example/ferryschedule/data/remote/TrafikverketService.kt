@@ -142,7 +142,7 @@ class TrafikverketService(
         return results
     }
 
-    suspend fun fetchTrafficStatus(): TrafficStatus = withContext(Dispatchers.IO) {
+    suspend fun fetchTrafficStatus(referenceTime: LocalTime = LocalTime.now()): TrafficStatus = withContext(Dispatchers.IO) {
         val queryXml = """
             <REQUEST>
               <LOGIN authenticationkey="$authKey" />
@@ -223,25 +223,61 @@ class TrafikverketService(
             segments.addAll(getDefaultSegments())
         }
 
-        // Add Hönö island terminal segment
-        val now = LocalTime.now()
+        // Add Hönö island roads (both directions)
+        val now = referenceTime
         val isMorningRush = now.hour in 7..8
         val honoLevel = if (isMorningRush) CongestionLevel.YELLOW else CongestionLevel.GREEN
-        val honoDelaySec = if (isMorningRush) 300 else 0
+        val honoDelaySec = if (isMorningRush) 360 else 0
+
+        // Towards Pinan Ferry (Lower lane)
+        segments.add(
+            RoadSegment(
+                id = "hono_approaches",
+                name = "Klåva / Öckerö → Pinan korsväg",
+                description = "Väg 574 infart mot färjeterminalen",
+                speedKmh = if (honoLevel == CongestionLevel.GREEN) 50.0 else 30.0,
+                normalSpeedKmh = 50.0,
+                travelTimeSeconds = if (honoLevel == CongestionLevel.GREEN) 60 else 120,
+                freeFlowSeconds = 60,
+                delaySeconds = if (isMorningRush) 60 else 0,
+                lengthMeters = 800,
+                level = if (isMorningRush) CongestionLevel.YELLOW else CongestionLevel.GREEN,
+                side = "hono",
+                direction = "towards_ferry"
+            )
+        )
         segments.add(
             RoadSegment(
                 id = "hono_pinan",
-                name = "Väg 574 → Pinan färjeläge (Hönö)",
-                description = "Uppställningsfiler och infart mot färjan på Hönö",
-                speedKmh = if (honoLevel == CongestionLevel.GREEN) 45.0 else 25.0,
-                normalSpeedKmh = 50.0,
-                travelTimeSeconds = if (honoLevel == CongestionLevel.GREEN) 40 else 120,
+                name = "Pinan korsväg → Uppställningsfiler",
+                description = "Sista sträckan och uppställningsfiler vid Pinan",
+                speedKmh = if (honoLevel == CongestionLevel.GREEN) 45.0 else 20.0,
+                normalSpeedKmh = 45.0,
+                travelTimeSeconds = if (honoLevel == CongestionLevel.GREEN) 40 else 300,
                 freeFlowSeconds = 40,
                 delaySeconds = honoDelaySec,
                 lengthMeters = 500,
                 level = honoLevel,
                 side = "hono",
                 direction = "towards_ferry"
+            )
+        )
+
+        // Leaving Ferry onto Island (Upper lane)
+        segments.add(
+            RoadSegment(
+                id = "hono_ut",
+                name = "Färjan → Ut på Hönö / Öckerö",
+                description = "Från rampen västerut mot Klåva och Öckerö",
+                speedKmh = 50.0,
+                normalSpeedKmh = 50.0,
+                travelTimeSeconds = 60,
+                freeFlowSeconds = 60,
+                delaySeconds = 0,
+                lengthMeters = 1000,
+                level = CongestionLevel.GREEN,
+                side = "hono",
+                direction = "towards_city"
             )
         )
 
@@ -285,17 +321,31 @@ class TrafikverketService(
             greenStartPoint = "Grönt från Hjuvik och österut mot Torslanda."
         )
 
+        val honoRoadQueueMin = if (isMorningRush) 6 else 0
+        val honoBreakdown = QueueBreakdown(
+            roadQueueMinutes = honoRoadQueueMin,
+            nextFerryMinutes = 8,
+            ferriesWaitingCount = if (isMorningRush) 1 else 0,
+            estimatedBoardingFerryTime = if (isMorningRush) "2:a färjan" else "Nästa färja",
+            totalWaitMinutes = if (isMorningRush) 14 else 8,
+            queueExplanation = if (honoRoadQueueMin == 0) {
+                "Fri framkomlighet vid Pinan terminal. Alla fordon ryms på nästa färja."
+            } else {
+                "Morgonpendling mot Göteborg ($honoRoadQueueMin min kö i uppställningsfilerna). Risk att inte komma med 1:a färjan."
+            }
+        )
+
         val honoSide = SideQueueStatus(
             side = "hono",
             name = "Från Hönö (Pinan)",
             destination = "mot Fastlandet",
             level = honoLevel,
-            statusText = if (honoLevel == CongestionLevel.GREEN) "Ingen kö – Fri framkomlighet" else "Lätt kö vid Pinan terminal",
-            queueMetersEstimate = if (honoLevel == CongestionLevel.GREEN) 0 else 150,
-            queueDescription = "Trafiken flyter normalt vid Pinan terminal.",
-            breakdown = QueueBreakdown(0, 8, 0, "Nästa färja", 8, "Fri väg på ön."),
-            speedKmh = if (honoLevel == CongestionLevel.GREEN) 45.0 else 25.0,
-            greenStartPoint = "Normalt grönt flöde på ö-vägarna."
+            statusText = if (honoLevel == CongestionLevel.GREEN) "Ingen kö – Fri framkomlighet" else "Morgonkö vid Pinan terminal",
+            queueMetersEstimate = if (honoLevel == CongestionLevel.GREEN) 0 else 250,
+            queueDescription = if (honoLevel == CongestionLevel.GREEN) "Trafiken flyter normalt vid Pinan terminal." else "Morgontrafik mot fastlandet med kö i uppställningsfilerna.",
+            breakdown = honoBreakdown,
+            speedKmh = if (honoLevel == CongestionLevel.GREEN) 45.0 else 22.0,
+            greenStartPoint = if (honoLevel == CongestionLevel.GREEN) "Normalt grönt flöde på ö-vägarna." else "Grönt väster om Pinankorset mot Klåva/Öckerö."
         )
 
         TrafficStatus(

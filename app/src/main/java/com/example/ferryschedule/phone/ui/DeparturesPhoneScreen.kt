@@ -171,13 +171,13 @@ fun DeparturesPhoneScreen(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
-                                text = "Väg 155 mot Färjan & Göteborg",
+                                text = "Väg 155 & Väg 574 (Båda sidor)",
                                 color = Color.White,
                                 style = MaterialTheme.typography.titleSmall,
                                 fontWeight = FontWeight.Bold
                             )
                             Text(
-                                text = "Båda körfälten",
+                                text = "Hönö & Fastlandet",
                                 color = Color(0xFF38BDF8),
                                 fontSize = 11.sp
                             )
@@ -188,7 +188,7 @@ fun DeparturesPhoneScreen(
                         if (corridorBitmap != null) {
                             Image(
                                 bitmap = corridorBitmap!!.asImageBitmap(),
-                                contentDescription = "Vägkarta Väg 155",
+                                contentDescription = "Vägkarta Hönöleden och anslutningsvägar",
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .clip(RoundedCornerShape(10.dp))
@@ -208,27 +208,50 @@ fun DeparturesPhoneScreen(
 
                         Spacer(modifier = Modifier.height(10.dp))
 
-                        // Road Segment Speed Summary
+                        // Road Segment Speed Summary for both Fastlandet and Hönö Island
                         val varholmen = uiState.trafficStatus?.varholmen
-                        val westSpeed = varholmen?.speedKmh?.toInt() ?: 42
-                        val queueMin = varholmen?.breakdown?.roadQueueMinutes ?: 0
+                        val hono = uiState.trafficStatus?.hono
+                        val vSpeed = varholmen?.speedKmh?.toInt() ?: 42
+                        val vQueueMin = varholmen?.breakdown?.roadQueueMinutes ?: 0
+                        val hSpeed = hono?.speedKmh?.toInt() ?: 45
+                        val hQueueMin = hono?.breakdown?.roadQueueMinutes ?: 0
 
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Text(
-                                text = "Mot Färjan: $westSpeed km/h (${if (queueMin == 0) "Fri fart" else "Kö $queueMin min"})",
-                                color = if (queueMin == 0) Color(0xFF10B981) else Color(0xFFF43F5E),
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Text(
-                                text = "Mot Stan: ~48 km/h (Grönt)",
-                                color = Color(0xFF10B981),
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold
-                            )
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            // Row 1: Fastlandet (Väg 155)
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(
+                                    text = "⚓ Varholmen mot Hönö: $vSpeed km/h (${if (vQueueMin == 0) "Fri väg" else "Kö $vQueueMin min"})",
+                                    color = if (vQueueMin == 0) Color(0xFF10B981) else Color(0xFFF43F5E),
+                                    fontSize = 11.5.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    text = "Mot Stan: ~48 km/h",
+                                    color = Color(0xFF10B981),
+                                    fontSize = 11.5.sp
+                                )
+                            }
+
+                            // Row 2: Hönö Island (Väg 574)
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(
+                                    text = "🏝️ Hönö mot Pinan: $hSpeed km/h (${if (hQueueMin == 0) "Fri väg" else "Morgonkö $hQueueMin min"})",
+                                    color = if (hQueueMin == 0) Color(0xFF10B981) else Color(0xFFF59E0B),
+                                    fontSize = 11.5.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    text = "Ut på ön: ~50 km/h",
+                                    color = Color(0xFF10B981),
+                                    fontSize = 11.5.sp
+                                )
+                            }
                         }
                     }
                 }

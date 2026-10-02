@@ -50,9 +50,9 @@ class FerryRepositoryImpl(
         }
     }
 
-    override suspend fun getTrafficStatus(): Result<TrafficStatus> {
+    override suspend fun getTrafficStatus(fromTime: LocalTime): Result<TrafficStatus> {
         return runCatching {
-            val status = trafikverketService.fetchTrafficStatus()
+            val status = trafikverketService.fetchTrafficStatus(fromTime)
             cachedTrafficStatus = status
             status
         }

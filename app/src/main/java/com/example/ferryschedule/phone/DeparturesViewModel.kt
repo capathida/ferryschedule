@@ -58,7 +58,7 @@ class DeparturesViewModel(
         viewModelScope.launch {
             val referenceTime = simulatedTime ?: LocalTime.now()
 
-            val trafficResult = repository.getTrafficStatus()
+            val trafficResult = repository.getTrafficStatus(referenceTime)
             val traffic = trafficResult.getOrNull()
 
             val depResult = repository.getNextDepartures(

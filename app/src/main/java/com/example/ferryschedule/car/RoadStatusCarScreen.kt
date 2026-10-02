@@ -91,40 +91,48 @@ class RoadStatusCarScreen(
             .setImage(carIcon)
 
         val varholmen = trafficStatus?.varholmen
+        val hono = trafficStatus?.hono
         val westSpeed = varholmen?.speedKmh?.toInt() ?: 42
-        val queueMinutes = varholmen?.breakdown?.roadQueueMinutes ?: 0
+        val vQueueMinutes = varholmen?.breakdown?.roadQueueMinutes ?: 0
+        val honoSpeed = hono?.speedKmh?.toInt() ?: 45
+        val hQueueMinutes = hono?.breakdown?.roadQueueMinutes ?: 0
 
-        // Row 1: Westbound towards ferry
-        paneBuilder.addRow(
-            Row.Builder()
-                .setTitle("Mot Färjan (Västerut)")
-                .addText("Hastighet vid rampen: $westSpeed km/h • ${varholmen?.statusText ?: "Fri fart"}")
-                .build()
-        )
-
-        // Row 2: Queue & Boarding forecast
-        val queueText = if (queueMinutes == 0) {
-            "Ingen bilkö (0 min) ➔ Du hinner med 1:a färjan!"
+        // Row 1: Fastlandet (Väg 155) -> Färjan
+        val varholmenText = if (vQueueMinutes == 0) {
+            "Hastighet: $westSpeed km/h • Fri väg (0 min kö) ➔ 1:a färjan"
         } else {
-            "Bilkö ca $queueMinutes min ➔ Beräknas ombord på 2:a färjan"
+            "Hastighet: $westSpeed km/h • Kö $vQueueMinutes min ➔ ${varholmen?.breakdown?.estimatedBoardingFerryTime ?: "2:a färjan"}"
         }
         paneBuilder.addRow(
             Row.Builder()
-                .setTitle("Bilkötid & Färjeprognos")
-                .addText(queueText)
+                .setTitle("Fastlandet: Lilla Varholmen (Väg 155)")
+                .addText(varholmenText)
                 .build()
         )
 
-        // Row 3: Eastbound towards city
+        // Row 2: Hönö (Väg 574) -> Pinan Färjeläge
+        val honoText = if (hQueueMinutes == 0) {
+            "Hastighet: $honoSpeed km/h • Fri väg (0 min kö) ➔ 1:a färjan"
+        } else {
+            "Hastighet: $honoSpeed km/h • Morgonkö $hQueueMinutes min i filerna ➔ ${hono?.breakdown?.estimatedBoardingFerryTime ?: "2:a färjan"}"
+        }
         paneBuilder.addRow(
             Row.Builder()
-                .setTitle("Mot Göteborg (Österut)")
-                .addText("Trafiken flyter på normalt mot Stan")
+                .setTitle("Hönö: Pinan Färjeläge (Väg 574)")
+                .addText(honoText)
+                .build()
+        )
+
+        // Row 3: Returriktningar (Mot Stan & Ut på Hönö)
+        paneBuilder.addRow(
+            Row.Builder()
+                .setTitle("Returvägar (Mot Stan & Ut på Hönö)")
+                .addText("Grönt flöde och fri fart i båda riktningarna från färjorna")
                 .build()
         )
 
         return PaneTemplate.Builder(paneBuilder.build())
-            .setTitle("Vägstatus Väg 155 & Hönöleden")
+            .setTitle("Vägkarta Hönöleden & Väg 155/574")
             .setHeaderAction(Action.BACK)
             .setActionStrip(actionStrip)
             .build()
