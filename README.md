@@ -124,3 +124,10 @@ To enable this app to run on your actual car's Android Auto dashboard:
 2. Select your connected phone or an Android Virtual Device (AVD).
 3. Click **Run (▶)** (`Shift + F10`).
 4. The app launches with live departures, the rendered road schematic, queue advice, and live CCTV cameras.
+
+---
+
+## 🚀 Monetization & Scaling Roadmap
+
+Planering för framtida distribution på Google Play, freemium-in-app purchases, tidsstyrda rabatter, gratisåtkomst för vänner och anti-spam/kostnadskontroll:
+👉 Läs hela guiden i [**`docs/MONETIZATION_AND_SCALING_ROADMAP.md`**](docs/MONETIZATION_AND_SCALING_ROADMAP.md).
