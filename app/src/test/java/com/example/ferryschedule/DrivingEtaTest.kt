@@ -105,4 +105,12 @@ class DrivingEtaTest {
             .getConstructor(android.app.Application::class.java)
         org.junit.Assert.assertNotNull(constructor)
     }
+
+    @Test
+    fun testRepositoryAntiSpamConstants() {
+        assertEquals(90_000L, com.example.ferryschedule.data.repository.DrivingEtaRepository.COOLDOWN_MS)
+        assertEquals(300_000L, com.example.ferryschedule.data.repository.DrivingEtaRepository.MAX_CACHE_AGE_MS)
+        assertEquals(250f, com.example.ferryschedule.data.repository.DrivingEtaRepository.MOVEMENT_THRESHOLD_METERS, 0.01f)
+        assertEquals(80, com.example.ferryschedule.data.repository.DrivingEtaRepository.MAX_DAILY_CALLS)
+    }
 }

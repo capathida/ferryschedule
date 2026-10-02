@@ -35,9 +35,42 @@ class UserPreferences(context: Context) {
             prefs.edit().putString(KEY_MAPS_API_KEY, value.trim()).apply()
         }
 
+    fun canMakeGoogleMapsApiCall(maxCallsPerDay: Int = 80): Boolean {
+        val today = java.time.LocalDate.now().toString()
+        val lastDate = prefs.getString(KEY_API_CALL_DATE, "") ?: ""
+        if (lastDate != today) {
+            return true
+        }
+        val currentCount = prefs.getInt(KEY_API_CALL_COUNT, 0)
+        return currentCount < maxCallsPerDay
+    }
+
+    fun recordGoogleMapsApiCall(): Int {
+        val today = java.time.LocalDate.now().toString()
+        val lastDate = prefs.getString(KEY_API_CALL_DATE, "") ?: ""
+        val count = if (lastDate == today) {
+            prefs.getInt(KEY_API_CALL_COUNT, 0) + 1
+        } else {
+            1
+        }
+        prefs.edit()
+            .putString(KEY_API_CALL_DATE, today)
+            .putInt(KEY_API_CALL_COUNT, count)
+            .apply()
+        return count
+    }
+
+    fun getTodayGoogleMapsApiCallCount(): Int {
+        val today = java.time.LocalDate.now().toString()
+        val lastDate = prefs.getString(KEY_API_CALL_DATE, "") ?: ""
+        return if (lastDate == today) prefs.getInt(KEY_API_CALL_COUNT, 0) else 0
+    }
+
     companion object {
         private const val KEY_DIRECTION = "selected_route_direction"
         private const val KEY_MAPS_API_KEY = "google_maps_api_key"
+        private const val KEY_API_CALL_DATE = "google_maps_api_call_date"
+        private const val KEY_API_CALL_COUNT = "google_maps_api_call_count"
 
         @Volatile
         private var instance: UserPreferences? = null
