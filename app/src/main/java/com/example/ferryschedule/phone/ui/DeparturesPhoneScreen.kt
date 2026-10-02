@@ -1,7 +1,10 @@
 package com.example.ferryschedule.phone.ui
 
-import androidx.compose.animation.AnimatedVisibility
+import android.content.Intent
+import android.net.Uri
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -10,7 +13,9 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.DirectionsBoat
+import androidx.compose.material.icons.filled.Navigation
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material3.*
@@ -21,10 +26,17 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage
 import com.example.ferryschedule.domain.model.FerryDeparture
+import com.example.ferryschedule.domain.model.RouteDirection
+import com.example.ferryschedule.domain.model.TrafficCamera
+import com.example.ferryschedule.domain.model.TrafficStatus
 import com.example.ferryschedule.phone.DeparturesViewModel
 import java.time.LocalTime
 
@@ -35,6 +47,8 @@ fun DeparturesPhoneScreen(
     modifier: Modifier = Modifier
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val corridorBitmap by viewModel.corridorBitmap.collectAsState()
+    val context = LocalContext.current
 
     Scaffold(
         topBar = {
@@ -48,7 +62,7 @@ fun DeparturesPhoneScreen(
                             modifier = Modifier.padding(end = 8.dp)
                         )
                         Text(
-                            text = "Hönöleden",
+                            text = "Hönöleden Live",
                             fontWeight = FontWeight.Bold
                         )
                     }
@@ -81,11 +95,16 @@ fun DeparturesPhoneScreen(
                 DirectionCard(
                     origin = uiState.direction.originName,
                     destination = uiState.direction.destinationName,
-                    onSwap = { viewModel.toggleDirection() }
+                    onSwap = { viewModel.toggleDirection() },
+                    onNavigate = {
+                        val query = if (uiState.direction == RouteDirection.VARHOLMEN_TO_HONO) "Lilla Varholmen Färjeläge" else "Hönö Färjeläge Pinan"
+                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse("geo:57.7088,11.7100?q=$query"))
+                        context.startActivity(intent)
+                    }
                 )
             }
 
-            // Hero Card: The very next departure
+            // Hero Card: Next Departure
             item {
                 Text(
                     text = "NÄSTA AVGÅNG",
@@ -97,7 +116,7 @@ fun DeparturesPhoneScreen(
 
                 val nextDep = uiState.nextDeparture
                 if (nextDep != null) {
-                    HeroDepartureCard(departure = nextDep)
+                    HeroDepartureCard(departure = nextDep, trafficStatus = uiState.trafficStatus, direction = uiState.direction)
                 } else if (uiState.isLoading) {
                     Box(
                         modifier = Modifier
@@ -130,6 +149,110 @@ fun DeparturesPhoneScreen(
                 }
             }
 
+            // Road Corridor Visual Graphic Section
+            item {
+                Text(
+                    text = "TRAFIKÖVERSIKT & VÄGKARTA",
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+
+                Card(
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFF0A192F)),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Väg 155 mot Färjan & Göteborg",
+                                color = Color.White,
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                text = "Båda körfälten",
+                                color = Color(0xFF38BDF8),
+                                fontSize = 11.sp
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(10.dp))
+
+                        // Rendered Road Corridor Bitmap
+                        if (corridorBitmap != null) {
+                            Image(
+                                bitmap = corridorBitmap!!.asImageBitmap(),
+                                contentDescription = "Vägkarta Väg 155",
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .border(1.dp, Color(0xFF1E293B), RoundedCornerShape(10.dp)),
+                                contentScale = ContentScale.FillWidth
+                            )
+                        } else {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(150.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                CircularProgressIndicator(color = Color(0xFF38BDF8))
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(10.dp))
+
+                        // Road Segment Speed Summary
+                        val varholmen = uiState.trafficStatus?.varholmen
+                        val westSpeed = varholmen?.speedKmh?.toInt() ?: 42
+                        val queueMin = varholmen?.breakdown?.roadQueueMinutes ?: 0
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                text = "Mot Färjan: $westSpeed km/h (${if (queueMin == 0) "Fri fart" else "Kö $queueMin min"})",
+                                color = if (queueMin == 0) Color(0xFF10B981) else Color(0xFFF43F5E),
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                text = "Mot Stan: ~48 km/h (Grönt)",
+                                color = Color(0xFF10B981),
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                }
+            }
+
+            // Live Traffic Cameras Section
+            if (uiState.cameras.isNotEmpty()) {
+                item {
+                    Text(
+                        text = "LIVE TRAFIKKAMEROR (VÄG 155)",
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+
+                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        uiState.cameras.forEach { camera ->
+                            TrafficCameraCard(camera = camera)
+                        }
+                    }
+                }
+            }
+
             // Quick Time Simulation Bar for Testing
             item {
                 Spacer(modifier = Modifier.height(12.dp))
@@ -147,7 +270,8 @@ fun DeparturesPhoneScreen(
 fun DirectionCard(
     origin: String,
     destination: String,
-    onSwap: () -> Unit
+    onSwap: () -> Unit,
+    onNavigate: () -> Unit
 ) {
     Card(
         shape = RoundedCornerShape(16.dp),
@@ -189,29 +313,46 @@ fun DirectionCard(
                 )
             }
 
-            FilledIconButton(
-                onClick = onSwap,
-                colors = IconButtonDefaults.filledIconButtonColors(
-                    containerColor = MaterialTheme.colorScheme.primary
-                )
-            ) {
-                Icon(
-                    imageVector = Icons.Default.SwapHoriz,
-                    contentDescription = "Byt riktning",
-                    tint = MaterialTheme.colorScheme.onPrimary
-                )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FilledIconButton(
+                    onClick = onSwap,
+                    colors = IconButtonDefaults.filledIconButtonColors(
+                        containerColor = MaterialTheme.colorScheme.primary
+                    )
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.SwapHoriz,
+                        contentDescription = "Byt riktning",
+                        tint = MaterialTheme.colorScheme.onPrimary
+                    )
+                }
+
+                FilledIconButton(
+                    onClick = onNavigate,
+                    colors = IconButtonDefaults.filledIconButtonColors(
+                        containerColor = Color(0xFF0F766E)
+                    )
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Navigation,
+                        contentDescription = "Starta Google Maps",
+                        tint = Color.White
+                    )
+                }
             }
         }
     }
 }
 
 @Composable
-fun HeroDepartureCard(departure: FerryDeparture) {
+fun HeroDepartureCard(
+    departure: FerryDeparture,
+    trafficStatus: TrafficStatus?,
+    direction: RouteDirection
+) {
     Card(
         shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
-        ),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
         modifier = Modifier.fillMaxWidth()
     ) {
@@ -225,14 +366,14 @@ fun HeroDepartureCard(departure: FerryDeparture) {
                     text = departure.formattedTime,
                     fontSize = 44.sp,
                     fontWeight = FontWeight.ExtraBold,
-                    color = MaterialTheme.colorScheme.primary
+                    color = if (departure.isCancelled) Color(0xFFE53935) else MaterialTheme.colorScheme.primary
                 )
 
                 // Countdown Pill
-                val badgeColor = if (departure.isImminent || departure.isDepartingNow) {
-                    Color(0xFFE53935) // Urgent red/orange
-                } else {
-                    MaterialTheme.colorScheme.primary
+                val badgeColor = when {
+                    departure.isCancelled -> Color(0xFFE53935)
+                    departure.isImminent || departure.isDepartingNow -> Color(0xFFE53935)
+                    else -> MaterialTheme.colorScheme.primary
                 }
 
                 Box(
@@ -251,8 +392,51 @@ fun HeroDepartureCard(departure: FerryDeparture) {
             }
 
             Spacer(modifier = Modifier.height(10.dp))
-            Divider(color = MaterialTheme.colorScheme.surfaceVariant)
+            HorizontalDivider(color = MaterialTheme.colorScheme.surfaceVariant)
             Spacer(modifier = Modifier.height(10.dp))
+
+            // Smart Queue Breakdown
+            val queue = if (direction == RouteDirection.VARHOLMEN_TO_HONO) {
+                trafficStatus?.varholmen?.breakdown
+            } else {
+                trafficStatus?.hono?.breakdown
+            }
+
+            if (queue != null && queue.roadQueueMinutes > 0) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(Color(0xFFFEF2F2))
+                        .padding(10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "🚗 Bilkö: ${queue.roadQueueMinutes} min ➔ Prognos: Du hinner med ${queue.estimatedBoardingFerryTime}",
+                        style = MaterialTheme.typography.bodySmall,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFFDC2626)
+                    )
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+            } else {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(Color(0xFFECFDF5))
+                        .padding(10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "🟢 Fri väg (0 min kö) ➔ Du hinner med nästa färja!",
+                        style = MaterialTheme.typography.bodySmall,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF059669)
+                    )
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+            }
 
             Text(
                 text = "Överfartstid cirka 12 minuter • Trafikverket Färjerederiet",
@@ -270,9 +454,7 @@ fun UpcomingDepartureRow(
 ) {
     Card(
         shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
-        ),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
         modifier = Modifier.fillMaxWidth()
     ) {
@@ -303,7 +485,7 @@ fun UpcomingDepartureRow(
                     text = departure.formattedTime,
                     fontSize = 22.sp,
                     fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface
+                    color = if (departure.isCancelled) Color(0xFFE53935) else MaterialTheme.colorScheme.onSurface
                 )
             }
 
@@ -311,8 +493,58 @@ fun UpcomingDepartureRow(
                 text = departure.countdownText,
                 style = MaterialTheme.typography.bodyMedium,
                 fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.secondary
+                color = if (departure.isCancelled) Color(0xFFE53935) else MaterialTheme.colorScheme.secondary
             )
+        }
+    }
+}
+
+@Composable
+fun TrafficCameraCard(camera: TrafficCamera) {
+    Card(
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column {
+            Box(modifier = Modifier.fillMaxWidth().height(180.dp).background(Color.Black)) {
+                AsyncImage(
+                    model = camera.photoUrl,
+                    contentDescription = camera.name,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize()
+                )
+                Box(
+                    modifier = Modifier
+                        .padding(8.dp)
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(Color(0xCC000000))
+                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                ) {
+                    Text(
+                        text = "🔴 LIVE • ${camera.photoTime}",
+                        color = Color.White,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+
+            Column(modifier = Modifier.padding(12.dp)) {
+                Text(
+                    text = camera.name,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold
+                )
+                if (camera.description.isNotEmpty()) {
+                    Text(
+                        text = camera.description,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
         }
     }
 }

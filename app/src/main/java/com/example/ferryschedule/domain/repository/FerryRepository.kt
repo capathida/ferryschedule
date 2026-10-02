@@ -1,14 +1,16 @@
 package com.example.ferryschedule.domain.repository
 
 import com.example.ferryschedule.domain.model.FerryDeparture
+import com.example.ferryschedule.domain.model.FerryScheduleState
 import com.example.ferryschedule.domain.model.RouteDirection
+import com.example.ferryschedule.domain.model.TrafficCamera
+import com.example.ferryschedule.domain.model.TrafficStatus
 import kotlinx.coroutines.flow.Flow
 import java.time.LocalTime
 
 interface FerryRepository {
     /**
-     * Retrieves the upcoming ferry departures for a given direction starting from [fromTime].
-     * @param count Number of departures to return (default: 3).
+     * Retrieves the upcoming ferry departures for a given direction.
      */
     suspend fun getNextDepartures(
         direction: RouteDirection,
@@ -17,10 +19,20 @@ interface FerryRepository {
     ): Result<List<FerryDeparture>>
 
     /**
-     * Observes departures with periodic refreshes.
+     * Retrieves live road corridor traffic status, speeds, and queues.
      */
-    fun observeDepartures(
+    suspend fun getTrafficStatus(): Result<TrafficStatus>
+
+    /**
+     * Retrieves live Trafikverket camera photos for Route 155 approach.
+     */
+    suspend fun getTrafficCameras(): Result<List<TrafficCamera>>
+
+    /**
+     * Continuously observes departures, queues, and cameras.
+     */
+    fun observeFullState(
         direction: RouteDirection,
         refreshIntervalMillis: Long = 30_000L
-    ): Flow<List<FerryDeparture>>
+    ): Flow<FerryScheduleState>
 }

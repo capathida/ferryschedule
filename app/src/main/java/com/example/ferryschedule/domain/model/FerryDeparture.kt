@@ -4,10 +4,16 @@ import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 
 data class FerryDeparture(
+    val id: String = "",
     val departureTime: LocalTime,
     val minutesUntilDeparture: Long,
     val statusRemarks: String? = null,
-    val isEstimated: Boolean = false
+    val isEstimated: Boolean = false,
+    val isCancelled: Boolean = false,
+    val isDeviated: Boolean = false,
+    val deviationMessage: String? = null,
+    val departureTimestamp: Long = 0L,
+    val queueBreakdown: QueueBreakdown? = null
 ) {
     val formattedTime: String
         get() = departureTime.format(TIME_FORMATTER)
@@ -20,6 +26,7 @@ data class FerryDeparture(
 
     val countdownText: String
         get() = when {
+            isCancelled -> "INSTÄLLD"
             minutesUntilDeparture <= 0 -> "Avgår nu!"
             minutesUntilDeparture == 1L -> "om 1 min"
             minutesUntilDeparture < 60L -> "om $minutesUntilDeparture min"
@@ -35,7 +42,11 @@ data class FerryDeparture(
         }
 
     val inCarSummary: String
-        get() = "$formattedTime ($countdownText)"
+        get() = if (isCancelled) {
+            "$formattedTime [INSTÄLLD]"
+        } else {
+            "$formattedTime ($countdownText)"
+        }
 
     companion object {
         val TIME_FORMATTER: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm")

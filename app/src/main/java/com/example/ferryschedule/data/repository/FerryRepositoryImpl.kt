@@ -1,8 +1,12 @@
 package com.example.ferryschedule.data.repository
 
 import com.example.ferryschedule.data.local.HonoTimetableEngine
+import com.example.ferryschedule.data.remote.TrafikverketService
 import com.example.ferryschedule.domain.model.FerryDeparture
+import com.example.ferryschedule.domain.model.FerryScheduleState
 import com.example.ferryschedule.domain.model.RouteDirection
+import com.example.ferryschedule.domain.model.TrafficCamera
+import com.example.ferryschedule.domain.model.TrafficStatus
 import com.example.ferryschedule.domain.repository.FerryRepository
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
@@ -10,8 +14,10 @@ import kotlinx.coroutines.flow.flow
 import java.time.LocalTime
 
 class FerryRepositoryImpl(
-    private val useRemoteApi: Boolean = false
+    private val trafikverketService: TrafikverketService = TrafikverketService()
 ) : FerryRepository {
+
+    private var cachedTrafficStatus: TrafficStatus? = null
 
     override suspend fun getNextDepartures(
         direction: RouteDirection,
@@ -19,13 +25,23 @@ class FerryRepositoryImpl(
         count: Int
     ): Result<List<FerryDeparture>> {
         return runCatching {
-            // Future Next.js API integration hook:
-            // if (useRemoteApi) {
-            //     val remote = NextJsApiClient.service.getDepartures(...)
-            //     return@runCatching remote.toDomain()
-            // }
+            // 1. Try real-time official Trafikverket API first
+            try {
+                val liveList = trafikverketService.fetchLiveDepartures(direction)
+                if (liveList.isNotEmpty()) {
+                    // Attach current queue breakdown to departures
+                    val queue = cachedTrafficStatus?.let {
+                        if (direction == RouteDirection.HONO_TO_VARHOLMEN) it.hono.breakdown else it.varholmen.breakdown
+                    }
+                    return@runCatching liveList.map { dep ->
+                        dep.copy(queueBreakdown = queue)
+                    }.take(count)
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
 
-            // Default: High-performance offline calculation engine
+            // 2. Offline fallback: High-precision calculation engine
             HonoTimetableEngine.getNextDepartures(
                 fromTime = fromTime,
                 direction = direction,
@@ -34,19 +50,45 @@ class FerryRepositoryImpl(
         }
     }
 
-    override fun observeDepartures(
+    override suspend fun getTrafficStatus(): Result<TrafficStatus> {
+        return runCatching {
+            val status = trafikverketService.fetchTrafficStatus()
+            cachedTrafficStatus = status
+            status
+        }
+    }
+
+    override suspend fun getTrafficCameras(): Result<List<TrafficCamera>> {
+        return runCatching {
+            trafikverketService.fetchTrafficCameras()
+        }
+    }
+
+    override fun observeFullState(
         direction: RouteDirection,
         refreshIntervalMillis: Long
-    ): Flow<List<FerryDeparture>> = flow {
+    ): Flow<FerryScheduleState> = flow {
         while (true) {
+            val traffic = getTrafficStatus().getOrNull()
             val departures = getNextDepartures(direction, LocalTime.now(), 3).getOrElse { emptyList() }
-            emit(departures)
+            val cameras = getTrafficCameras().getOrElse { emptyList() }
+
+            emit(
+                FerryScheduleState(
+                    direction = direction,
+                    departures = departures,
+                    trafficStatus = traffic,
+                    cameras = cameras,
+                    lastUpdated = LocalTime.now(),
+                    isLoading = false
+                )
+            )
+
             delay(refreshIntervalMillis)
         }
     }
 
     companion object {
-        // Singleton instance for app-wide and car-service access
         val instance: FerryRepository by lazy { FerryRepositoryImpl() }
     }
 }
