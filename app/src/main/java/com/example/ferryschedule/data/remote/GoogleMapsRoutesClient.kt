@@ -70,7 +70,9 @@ class GoogleMapsRoutesClient(
         originLng: Double,
         direction: RouteDirection,
         apiKey: String,
-        referenceTime: LocalTime = LocalTime.now()
+        referenceTime: LocalTime = LocalTime.now(),
+        packageName: String? = null,
+        sha1Cert: String? = null
     ): DrivingEtaState = withContext(Dispatchers.IO) {
         if (apiKey.isBlank()) {
             return@withContext DrivingEtaState.NoApiKey
@@ -84,14 +86,21 @@ class GoogleMapsRoutesClient(
         val jsonBody = json.encodeToString(requestPayload)
         val mediaType = "application/json; charset=utf-8".toMediaType()
 
-        val httpRequest = Request.Builder()
+        val requestBuilder = Request.Builder()
             .url("https://routes.googleapis.com/directions/v2:computeRoutes")
             .header("Content-Type", "application/json")
             .header("X-Goog-Api-Key", apiKey)
             .header("X-Goog-FieldMask", "routes.duration,routes.distanceMeters,routes.description")
             .header("X-Goog-Maps-Solution-ID", "gmp_git_agentskills_v1")
-            .post(jsonBody.toRequestBody(mediaType))
-            .build()
+
+        if (!packageName.isNullOrBlank()) {
+            requestBuilder.header("X-Android-Package", packageName)
+        }
+        if (!sha1Cert.isNullOrBlank()) {
+            requestBuilder.header("X-Android-Cert", sha1Cert)
+        }
+
+        val httpRequest = requestBuilder.post(jsonBody.toRequestBody(mediaType)).build()
 
         try {
             httpClient.newCall(httpRequest).execute().use { response ->

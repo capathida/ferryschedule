@@ -15,6 +15,35 @@ class DrivingEtaRepository(
     private val routesClient: GoogleMapsRoutesClient = GoogleMapsRoutesClient()
 ) {
 
+    private val sha1Fingerprint: String? by lazy {
+        try {
+            val packageInfo = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+                context.packageManager.getPackageInfo(
+                    context.packageName,
+                    android.content.pm.PackageManager.GET_SIGNING_CERTIFICATES
+                )
+            } else {
+                @Suppress("DEPRECATION")
+                context.packageManager.getPackageInfo(
+                    context.packageName,
+                    android.content.pm.PackageManager.GET_SIGNATURES
+                )
+            }
+            val signatures = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+                packageInfo.signingInfo?.apkContentsSigners
+            } else {
+                @Suppress("DEPRECATION")
+                packageInfo.signatures
+            }
+            val cert = signatures?.firstOrNull()?.toByteArray() ?: return@lazy null
+            val md = java.security.MessageDigest.getInstance("SHA-1")
+            val digest = md.digest(cert)
+            digest.joinToString("") { "%02X".format(it) }
+        } catch (e: Exception) {
+            null
+        }
+    }
+
     suspend fun getDrivingEta(
         direction: RouteDirection,
         referenceTime: LocalTime = LocalTime.now()
@@ -36,7 +65,9 @@ class DrivingEtaRepository(
             originLng = location.longitude,
             direction = direction,
             apiKey = apiKey,
-            referenceTime = referenceTime
+            referenceTime = referenceTime,
+            packageName = context.packageName,
+            sha1Cert = sha1Fingerprint
         )
     }
 
