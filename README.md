@@ -1,24 +1,41 @@
 # Hönöleden Ferry Schedule (Android Auto & Phone Companion)
 
-An intuitive, driver-optimized Android application providing real-time and scheduled ferry departures for the **Hönöleden** route (**Hönö Pinan ⇄ Lilla Varholmen**).
+An intuitive, driver-optimized Android application providing live, real-time ferry departures, queue forecasts, traffic cameras, and visual road status for the **Hönöleden** route (**Hönö Pinan ⇄ Lilla Varholmen**).
 
 ---
 
-## 🌟 Features
+## 🌟 Key Features
 
-- **Android Auto First-Class Support**:
-  - Implements the official **Android for Cars App Library** (`androidx.car.app`).
-  - Distraction-free, glanceable `ListTemplate` UI designed for in-car screens.
-  - Shows the **next 3 upcoming rides** from the current time.
-  - Large time readout, real-time countdown badge (`om 6 min`, `Avgår nu!`), and crossing time estimate (~12 min).
-  - One-tap route direction toggle: `[⇄ Byt riktning]`.
-  - Automatic 30-second refresh ticker while driving.
-- **Phone Companion App (Jetpack Compose)**:
-  - Material 3 design with responsive cards and quick route flipping.
-  - Built-in **Utvecklingsläge (Time Simulator)** allowing instant testing of peak morning rush, afternoon rush, midnight rollover, and night hours without modifying device time.
-- **Pluggable Data Architecture**:
-  - **Phase 1 (Active)**: Embedded 24/7 timetable engine for Hönöleden with full midnight rollover logic and accurate interval frequencies.
-  - **Phase 2 (Ready)**: Pre-configured Retrofit client ready to fetch live data from your Next.js backend.
+### 🚗 Android Auto (In-Car Screen)
+* **Distraction-Free Glanceability**: Built strictly following Google's Android for Cars Design Guidelines (`androidx.car.app`).
+* **Next 3 Departures**: Large departure time display, live countdown badges (`om 4 min`, `Avgår nu!`), crossing time (~12 min), and cancellation flags (`[INSTÄLLD]`).
+* **Smart Queue Forecast**: Shows live road delay and projected boarding:
+  > *Fri väg (0 min kö) ➔ Du hinner med nästa färja!*  
+  > *Bilkö: 8 min ➔ Prognos: Du hinner med 2:a färjan kl 14:32*
+* **Visual Road Map (`[Vägkarta]`)**: Full dual-lane schematic map on the car display (`PaneTemplate`) showing real-time traffic speeds and colors for Väg 155.
+* **One-Tap Navigation (`[Navigera]`)**: Instantly launches turn-by-turn guidance in **Google Maps / Waze** directly on your car screen.
+* **Auto-Refresh**: Re-calculates and refreshes every 30 seconds automatically.
+
+### 📱 Phone Companion App (Jetpack Compose)
+* **Live Departures & Countdown**: Next departure hero card with prominent countdown badge.
+* **Trafiköversikt & Vägkarta**: High-resolution rendered road schematic showing both lanes (Västerut mot Färjan & Österut mot Göteborg), live segment speeds (km/h), and pointer to where traffic becomes free-flow (*"HÄR BÖRJAR DET BLI GRÖNT"*).
+* **Live Trafikverket CCTV Cameras**: Real-time camera feeds from Väg 155 (e.g. *Bur mot Hjuvik & Färjan*) with live timestamps.
+* **Utvecklingsläge (Time Simulator)**: Quick-test chips (*07:15 Morgonrush*, *16:25 Eftermiddag*, *23:55 Midnatt*) to test any time of day instantly.
+
+---
+
+## 📡 Live Data Integrations
+
+* **Trafikverket Ferry Route API (Route 28)**:
+  * Schedules: `https://www.trafikverket.se/api/ferryRouteApi/schedules/?id=28&date=YYYY-MM-DD`
+  * Harbor endpoints: `55 = Hönö`, `56 = Lilla Varholmen`.
+  * Real-time deviations & cancellations: `https://www.trafikverket.se/api/ferryRouteApi/deviations/?id=28`
+* **Trafikverket TravelTimeRoute API (County 14)**:
+  * Live congestion speeds and delay calculations along Väg 155 (*Bur ➔ Amhult ➔ Hästevik ➔ Hjuvik ➔ Lulles väg ➔ Färjeläget*).
+* **Trafikverket Traffic Cameras**:
+  * Live CCTV photos of the Route 155 corridor.
+* **Offline Fallback Engine**:
+  * If offline or when APIs are unreachable, automatically falls back to the high-precision embedded timetable calculation engine.
 
 ---
 
@@ -27,94 +44,70 @@ An intuitive, driver-optimized Android application providing real-time and sched
 ```
 com.example.ferryschedule/
 ├── car/
-│   ├── FerryCarAppService.kt      # Android Auto service entry point
-│   ├── FerrySession.kt            # Session lifecycle manager
-│   └── DeparturesScreen.kt        # In-car ListTemplate UI
+│   ├── FerryCarAppService.kt         # Android Auto service entry point
+│   ├── FerrySession.kt               # Car session lifecycle
+│   ├── DeparturesScreen.kt           # In-car ListTemplate (Departures + Queue advice)
+│   └── RoadStatusCarScreen.kt        # In-car PaneTemplate (Visual road corridor map)
 ├── phone/
-│   ├── MainActivity.kt            # Mobile activity entry point
-│   ├── DeparturesViewModel.kt     # State management & coroutine ticker
+│   ├── MainActivity.kt               # Companion mobile activity
+│   ├── DeparturesViewModel.kt        # State management, camera loader, ticker
 │   └── ui/
-│       ├── DeparturesPhoneScreen.kt  # Jetpack Compose mobile interface
-│       └── theme/Theme.kt         # Nordic maritime Material 3 theme
+│       ├── DeparturesPhoneScreen.kt  # Jetpack Compose UI (Hero card, map, cameras)
+│       └── theme/Theme.kt            # Nordic maritime Material 3 theme
 ├── domain/
 │   ├── model/
-│   │   ├── FerryDeparture.kt      # Domain model (time, countdown, status)
-│   │   ├── RouteDirection.kt      # HONO_TO_VARHOLMEN vs VARHOLMEN_TO_HONO
-│   │   └── FerryScheduleState.kt  # Observable UI state
+│   │   ├── FerryDeparture.kt         # Time, countdown text, cancellations, queue
+│   │   ├── RouteDirection.kt         # HONO_TO_VARHOLMEN vs VARHOLMEN_TO_HONO
+│   │   ├── FerryScheduleState.kt     # Observable UI state
+│   │   └── TrafficModels.kt          # Road segments, CongestionLevel, Cameras
 │   └── repository/
-│       └── FerryRepository.kt     # Repository contract
-└── data/
-    ├── local/
-    │   └── HonoTimetableEngine.kt # 24/7 timetable calculation engine
-    ├── repository/
-    │   └── FerryRepositoryImpl.kt # Repository implementation with offline fallback
-    └── remote/
-        ├── NextJsDto.kt           # DTO schemas for Next.js API
-        └── NextJsApiClient.kt     # Retrofit client for Next.js backend
+│       └── FerryRepository.kt        # Repository abstraction
+├── data/
+│   ├── local/
+│   │   └── HonoTimetableEngine.kt    # 24/7 offline timetable & rollover engine
+│   ├── remote/
+│   │   ├── TrafikverketService.kt    # Live Trafikverket schedules, queues, cameras
+│   │   ├── NextJsDto.kt              # DTO schemas for Next.js API
+│   │   └── NextJsApiClient.kt        # Retrofit client for Next.js server
+│   └── repository/
+│       └── FerryRepositoryImpl.kt    # Repository implementation with auto-fallback
+└── util/
+    └── RoadCorridorBitmapGenerator.kt # Renders dynamic dual-lane road schematic into a Bitmap
 ```
 
 ---
 
-## 🚗 Testing on Android Auto (Desktop Head Unit / DHU)
+## 🚗 Testing on a Real Car
 
-To test the in-car display on your computer:
+To enable this app to run on your actual car's Android Auto dashboard:
 
-1. **Install DHU in Android Studio**:
-   - Open Android Studio ➔ **Tools** ➔ **SDK Manager** ➔ **SDK Tools** tab.
-   - Check **Android Auto Desktop Head Unit Emulator** and click Apply.
-   - The tool will be located at:
-     ```
-     %LOCALAPPDATA%\Android\Sdk\extras\google\auto\desktop-head-unit.exe
-     ```
+1. **On your phone**: Open **Settings** ➔ search for **Android Auto**.
+2. Scroll to the bottom and tap **Version** **10 times in a row** to unlock Developer Mode.
+3. Tap the **3 dots** (top right) ➔ tap **Developer settings** (*Utvecklarinställningar*).
+4. Check the box for **"Unknown sources"** (*Okända källor*).
+5. Plug your phone into your car's USB port (or connect via wireless Android Auto).
+6. Tap the **App Launcher** icon on your car screen — **Hönöleden** will appear in the app grid!
 
-2. **Enable Android Auto Developer Mode on your Phone**:
-   - On your Android phone, go to **Settings** ➔ **Apps** (or search "Android Auto").
-   - Open Android Auto settings.
-   - Scroll to the bottom and tap **Version** 10 times until Developer Mode is unlocked.
-   - Tap the three dots (top right) ➔ select **Start head unit server**.
+---
 
-3. **Port Forward & Launch**:
-   - Connect your phone via USB with USB debugging enabled.
-   - In PowerShell, run:
-     ```powershell
-     adb forward tcp:5277 tcp:5277
-     cd "$env:LOCALAPPDATA\Android\Sdk\extras\google\auto"
-     .\desktop-head-unit.exe
-     ```
-   - The Android Auto window will pop up on your PC, and **Hönöleden** will appear in the app list!
+## 💻 Testing with Desktop Head Unit (DHU Emulator)
+
+1. Open Android Studio ➔ **Tools** ➔ **SDK Manager** ➔ **SDK Tools** ➔ install **Android Auto Desktop Head Unit Emulator**.
+2. On your phone: In Android Auto settings ➔ tap 3 dots ➔ **Start head unit server**.
+3. Connect phone via USB with USB debugging enabled.
+4. In PowerShell, run:
+   ```powershell
+   adb forward tcp:5277 tcp:5277
+   cd "$env:LOCALAPPDATA\Android\Sdk\extras\google\auto"
+   .\desktop-head-unit.exe
+   ```
+5. The Android Auto window opens on your PC!
 
 ---
 
 ## 📱 Testing on Phone / Standard Emulator
 
-1. Open the project folder in **Android Studio**.
-2. Select a connected phone or Android Virtual Device (AVD).
-3. Click **Run** (`Shift + F10`).
-4. The phone app launches with the next 3 departures. You can use the bottom chips (e.g. *07:15*, *23:55*) to test different times immediately.
-
----
-
-## 🌐 Connecting your Next.js Backend (Phase 2)
-
-When your Next.js server is ready, update `NextJsApiClient.kt`:
-
-1. Set `BASE_URL`:
-   ```kotlin
-   // For local dev on Android Emulator:
-   var BASE_URL = "http://10.0.2.2:3000/"
-
-   // For deployed server:
-   var BASE_URL = "https://your-nextjs-app.vercel.app/"
-   ```
-2. Ensure your Next.js API route returns the following JSON structure at `GET /api/ferry/departures?direction=HONO_LV`:
-   ```json
-   {
-     "direction": "HONO_LV",
-     "timestamp": "2026-09-30T22:30:00Z",
-     "departures": [
-       { "time": "22:40", "minutesUntil": 10, "status": "I tid", "isEstimated": false },
-       { "time": "23:00", "minutesUntil": 30, "status": "I tid", "isEstimated": false },
-       { "time": "23:30", "minutesUntil": 60, "status": "I tid", "isEstimated": false }
-     ]
-   }
-   ```
+1. Open the project in **Android Studio**.
+2. Select your connected phone or an Android Virtual Device (AVD).
+3. Click **Run (▶)** (`Shift + F10`).
+4. The app launches with live departures, the rendered road schematic, queue advice, and live CCTV cameras.
